@@ -13,10 +13,10 @@ On-device PII anonymization module for high-privacy translation workflows. Detec
 ## Installation
 
 ```bash
-npm install bridge-anonymization
+npm install @elanlanguages/bridge-anonymization
 ```
 
-> **Bun users**: Install `onnxruntime-web` additionally: `bun add bridge-anonymization onnxruntime-web`
+> **Bun users**: Install `onnxruntime-web` additionally: `bun add @elanlanguages/bridge-anonymization onnxruntime-web`
 
 ## Quick Start
 
@@ -25,7 +25,7 @@ npm install bridge-anonymization
 For structured PII like emails, phones, IBANs, credit cards:
 
 ```typescript
-import { anonymizeRegexOnly } from 'bridge-anonymization';
+import { anonymizeRegexOnly } from '@elanlanguages/bridge-anonymization';
 
 const result = await anonymizeRegexOnly(
   'Contact john@example.com or call +49 30 123456. IBAN: DE89370400440532013000'
@@ -40,7 +40,7 @@ console.log(result.anonymizedText);
 The NER model is automatically downloaded on first use (~280 MB for quantized):
 
 ```typescript
-import { createAnonymizer } from 'bridge-anonymization';
+import { createAnonymizer } from '@elanlanguages/bridge-anonymization';
 
 const anonymizer = createAnonymizer({
   ner: { 
@@ -62,7 +62,7 @@ console.log(result.anonymizedText);
 ### One-liner with NER
 
 ```typescript
-import { anonymizeWithNER } from 'bridge-anonymization';
+import { anonymizeWithNER } from '@elanlanguages/bridge-anonymization';
 
 const result = await anonymizeWithNER(
   'Contact John Smith at john@example.com',
@@ -75,7 +75,7 @@ const result = await anonymizeWithNER(
 ### Configuration Options
 
 ```typescript
-import { createAnonymizer, InMemoryKeyProvider } from 'bridge-anonymization';
+import { createAnonymizer, InMemoryKeyProvider } from '@elanlanguages/bridge-anonymization';
 
 const anonymizer = createAnonymizer({
   // NER configuration
@@ -211,7 +211,7 @@ interface AnonymizationResult {
 ### Anonymization Policy
 
 ```typescript
-import { createAnonymizer, PIIType } from 'bridge-anonymization';
+import { createAnonymizer, PIIType } from '@elanlanguages/bridge-anonymization';
 
 const anonymizer = createAnonymizer({
   ner: { mode: 'quantized' },
@@ -239,7 +239,7 @@ const anonymizer = createAnonymizer({
 Add domain-specific patterns:
 
 ```typescript
-import { createCustomIdRecognizer, PIIType, createAnonymizer } from 'bridge-anonymization';
+import { createCustomIdRecognizer, PIIType, createAnonymizer } from '@elanlanguages/bridge-anonymization';
 
 const customRecognizer = createCustomIdRecognizer([
   {
@@ -271,7 +271,7 @@ import {
   clearModelCache,
   listDownloadedModels,
   getModelCacheDir 
-} from 'bridge-anonymization';
+} from '@elanlanguages/bridge-anonymization';
 
 // Check if model is downloaded
 const hasModel = await isModelDownloaded('quantized');
@@ -293,7 +293,7 @@ await clearModelCache('quantized');  // or clearModelCache() for all
 The PII map is encrypted using AES-256-GCM:
 
 ```typescript
-import { createAnonymizer, KeyProvider, generateKey } from 'bridge-anonymization';
+import { createAnonymizer, KeyProvider, generateKey } from '@elanlanguages/bridge-anonymization';
 
 class SecureKeyProvider implements KeyProvider {
   async getKey(): Promise<Buffer> {
@@ -320,13 +320,13 @@ const anonymizer = createAnonymizer({
 This library works with [Bun](https://bun.sh). Since `onnxruntime-node` is a native Node.js addon, Bun users need `onnxruntime-web`:
 
 ```bash
-bun add bridge-anonymization onnxruntime-web
+bun add @elanlanguages/bridge-anonymization onnxruntime-web
 ```
 
 Usage is identical - the library auto-detects the runtime:
 
 ```typescript
-import { createAnonymizer } from 'bridge-anonymization';
+import { createAnonymizer } from '@elanlanguages/bridge-anonymization';
 
 const anonymizer = createAnonymizer({
   ner: { mode: 'quantized' }
