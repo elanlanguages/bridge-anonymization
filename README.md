@@ -70,6 +70,74 @@ const result = await anonymizeWithNER(
 );
 ```
 
+## Translation Workflow (Anonymize → Translate → Rehydrate)
+
+The full workflow for privacy-preserving translation:
+
+```typescript
+import { 
+  createAnonymizer, 
+  decryptPIIMap, 
+  rehydrate,
+  InMemoryKeyProvider 
+} from '@elanlanguages/bridge-anonymization';
+
+// 1. Create a key provider (so you can decrypt later)
+const keyProvider = new InMemoryKeyProvider();
+
+// 2. Create anonymizer with key provider
+const anonymizer = createAnonymizer({
+  ner: { mode: 'quantized' },
+  keyProvider: keyProvider  // Important: keep reference to decrypt later!
+});
+
+await anonymizer.initialize();
+
+// 3. Anonymize before translation
+const original = 'Hello John Smith from Acme Corp in Berlin!';
+const result = await anonymizer.anonymize(original);
+
+console.log(result.anonymizedText);
+// "Hello <PII type="PERSON" id="1"/> from <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
+
+// 4. Translate (the placeholders are preserved by translation services)
+const translated = await bridgeTranslate(result.anonymizedText, { from: 'en', to: 'de' });
+// "Hallo <PII type="PERSON" id="1"/> von <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
+
+// 5. Decrypt the PII map using the same key
+const encryptionKey = await keyProvider.getKey();
+const piiMap = decryptPIIMap(result.piiMap, encryptionKey);
+
+// 6. Rehydrate - replace placeholders with original values
+const rehydrated = rehydrate(translated, piiMap);
+
+console.log(rehydrated);
+// "Hallo John Smith von Acme Corp in Berlin!"
+```
+
+### Key Points
+
+- **Save the encryption key** - You need the same key to decrypt the PII map
+- **Placeholders are XML-like** - Most translation services preserve them automatically
+- **PII stays local** - Original values never leave your system during translation
+
+### Production Key Management
+
+For production, use a proper key provider:
+
+```typescript
+import { EnvKeyProvider } from '@elanlanguages/bridge-anonymization';
+
+// Generate and store key: openssl rand -base64 32
+// Set environment variable: export PII_ENCRYPTION_KEY=<base64-key>
+
+const keyProvider = new EnvKeyProvider('PII_ENCRYPTION_KEY');
+const anonymizer = createAnonymizer({
+  ner: { mode: 'quantized' },
+  keyProvider
+});
+```
+
 ## API Reference
 
 ### Configuration Options
@@ -255,7 +323,7 @@ anonymizer.getRegistry().register(customRecognizer);
 
 ## Model Management
 
-Models are hosted on [Hugging Face Hub](https://huggingface.co/Xenova/xlm-roberta-base-ner-hrl) and automatically downloaded on first use.
+Models are hosted on [Hugging Face Hub](https://huggingface.co/tjruesch/xlm-roberta-base-ner-hrl-onnx) and automatically downloaded on first use.
 
 **Cache locations:**
 - **macOS**: `~/Library/Caches/bridge-anonymization/models/`
