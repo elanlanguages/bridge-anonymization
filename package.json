@@ -1,10 +1,14 @@
 {
   "name": "bridge-anonymization",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "On-device PII anonymization module for high-privacy translation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest",
@@ -12,7 +16,8 @@
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "setup:ner": "bash scripts/setup-ner-model.sh",
-    "setup:ner:quantized": "bash scripts/setup-ner-model.sh --quantize"
+    "setup:ner:quantized": "bash scripts/setup-ner-model.sh --quantize",
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
     "anonymization",
@@ -23,6 +28,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elanlanguages/bridge-anonymization.git"
+  },
   "dependencies": {},
   "optionalDependencies": {
     "onnxruntime-node": "^1.17.0"
@@ -51,4 +60,3 @@
     "node": ">=18.0.0"
   }
 }
-
