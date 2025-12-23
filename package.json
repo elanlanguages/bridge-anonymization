@@ -1,0 +1,54 @@
+{
+  "name": "bridge-anonymization",
+  "version": "1.0.0",
+  "description": "On-device PII anonymization module for high-privacy translation",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist",
+    "setup:ner": "bash scripts/setup-ner-model.sh",
+    "setup:ner:quantized": "bash scripts/setup-ner-model.sh --quantize"
+  },
+  "keywords": [
+    "anonymization",
+    "pii",
+    "privacy",
+    "ner",
+    "onnx"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "optionalDependencies": {
+    "onnxruntime-node": "^1.17.0"
+  },
+  "peerDependencies": {
+    "onnxruntime-node": "^1.17.0",
+    "onnxruntime-web": "^1.17.0"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    },
+    "onnxruntime-web": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

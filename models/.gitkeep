@@ -1,0 +1,17 @@
+# NER Model Directory
+#
+# Run `npm run setup:ner` to download and set up the NER model.
+#
+# This will create:
+#   models/ner/
+#   ├── model.onnx          # ONNX model file
+#   ├── vocab.txt           # Tokenizer vocabulary  
+#   ├── tokenizer.json      # Full tokenizer config
+#   ├── label_map.json      # BIO label mapping
+#   └── config.json         # Model configuration
+#
+# For a smaller model, use:
+#   npm run setup:ner:quantized
+#
+# For alternative models:
+#   npm run setup:ner -- dslim/bert-base-NER --quantize
