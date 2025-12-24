@@ -7,10 +7,9 @@ import {
   PIIType,
   SpanMatch,
   DetectedEntity,
-  DetectionSource,
   AnonymizationPolicy,
-} from '../types/index.js';
-import { sortSpansByPosition, sortSpansByPositionDescending } from '../utils/offsets.js';
+} from "../types/index.js";
+import { sortSpansByPosition } from "../utils/offsets.js";
 
 /**
  * PII Map entry (before encryption)
@@ -136,14 +135,18 @@ export function tagEntities(
 
   // Sort by start position descending for replacement
   // (replacing from end to start preserves earlier offsets)
-  const sortedDescending = [...entitiesWithIds].sort((a, b) => b.start - a.start);
+  const sortedDescending = [...entitiesWithIds].sort(
+    (a, b) => b.start - a.start
+  );
 
   // Perform replacements
   let anonymizedText = text;
   for (const entity of sortedDescending) {
     const tag = generateTag(entity.type, entity.id);
     anonymizedText =
-      anonymizedText.slice(0, entity.start) + tag + anonymizedText.slice(entity.end);
+      anonymizedText.slice(0, entity.start) +
+      tag +
+      anonymizedText.slice(entity.end);
   }
 
   // Build final entities list (sorted by position)
@@ -159,7 +162,7 @@ export function tagEntities(
 
   return {
     anonymizedText,
-    entities: sortSpansByPosition(entities) as DetectedEntity[],
+    entities: sortSpansByPosition(entities),
     piiMap,
   };
 }
@@ -172,10 +175,142 @@ export function isValidTag(tag: string): boolean {
 }
 
 /**
- * Extracts all PII tags from anonymized text
+ * Tag extraction result with the matched text for accurate replacement
  */
-export function extractTags(anonymizedText: string): Array<{ type: PIIType; id: number; position: number }> {
-  const tags: Array<{ type: PIIType; id: number; position: number }> = [];
+export interface ExtractedTag {
+  type: PIIType;
+  id: number;
+  position: number;
+  /** The actual matched text (needed for replacement when tag is mangled) */
+  matchedText: string;
+}
+
+/**
+ * Quote characters that might appear after translation
+ * Includes: standard quotes, smart quotes, German quotes, French quotes, etc.
+ *
+ * Unicode references:
+ * - \u0022 (") Standard double quote
+ * - \u0027 (') Standard single quote
+ * - \u0060 (`) Backtick
+ * - \u00AB («) Left guillemet
+ * - \u00BB (») Right guillemet
+ * - \u2018 (') Left single curly quote
+ * - \u2019 (') Right single curly quote
+ * - \u201A (‚) Single low-9 quote
+ * - \u201C (") Left double curly quote
+ * - \u201D (") Right double curly quote
+ * - \u201E („) Double low-9 quote (German)
+ */
+const QUOTE_CHARS = "[\"'`\u00AB\u00BB\u2018\u2019\u201A\u201C\u201D\u201E]";
+
+/**
+ * Whitespace pattern including various unicode spaces
+ */
+const FLEXIBLE_WS = `[\\s\\u00A0\\u2000-\\u200B]*`;
+const FLEXIBLE_WS_REQUIRED = `[\\s\\u00A0\\u2000-\\u200B]+`;
+
+/**
+ * Builds patterns for fuzzy PII tag matching
+ * Handles various translation artifacts
+ */
+function buildFuzzyTagPatterns(): RegExp[] {
+  // Pattern for type attribute: type = "VALUE" (flexible spacing and quotes)
+  const typeAttr = `type${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}([A-Z_]+)${QUOTE_CHARS}`;
+  // Pattern for id attribute: id = "VALUE" (flexible spacing and quotes)
+  const idAttr = `id${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\d+)${QUOTE_CHARS}`;
+
+  // Self-closing tag endings: />, / >, >, etc.
+  const selfClosing = `${FLEXIBLE_WS}\\/?${FLEXIBLE_WS}>`;
+
+  return [
+    // type first: <PII type="X" id="Y"/>
+    new RegExp(
+      `<${FLEXIBLE_WS}PII${FLEXIBLE_WS_REQUIRED}${typeAttr}${FLEXIBLE_WS_REQUIRED}${idAttr}${selfClosing}`,
+      "gi"
+    ),
+    // id first: <PII id="Y" type="X"/>
+    new RegExp(
+      `<${FLEXIBLE_WS}PII${FLEXIBLE_WS_REQUIRED}${idAttr}${FLEXIBLE_WS_REQUIRED}${typeAttr}${selfClosing}`,
+      "gi"
+    ),
+  ];
+}
+
+/**
+ * Extracts all PII tags from anonymized text using fuzzy matching
+ * Handles mangled tags that may occur after translation
+ *
+ * Translation can mangle tags by:
+ * - Changing quote types (" → " or „ or « etc.)
+ * - Adding/removing whitespace
+ * - Changing case (type → Type, PII → pii)
+ * - Reordering attributes (id before type)
+ * - Modifying self-closing syntax (/> → / > or >)
+ */
+export function extractTags(anonymizedText: string): ExtractedTag[] {
+  const tags: ExtractedTag[] = [];
+  const patterns = buildFuzzyTagPatterns();
+
+  // Track positions we've already matched to avoid duplicates from overlapping patterns
+  const matchedPositions = new Set<number>();
+
+  for (let patternIndex = 0; patternIndex < patterns.length; patternIndex++) {
+    const pattern = patterns[patternIndex];
+    if (pattern === undefined) continue;
+
+    let match: RegExpExecArray | null;
+    // Reset lastIndex for each pattern
+    pattern.lastIndex = 0;
+
+    while ((match = pattern.exec(anonymizedText)) !== null) {
+      if (matchedPositions.has(match.index)) {
+        continue; // Skip duplicates from overlapping patterns
+      }
+
+      // Extract type and id based on which pattern matched
+      // Pattern 0: type first (groups: type=1, id=2)
+      // Pattern 1: id first (groups: id=1, type=2)
+      let typeStr: string | undefined;
+      let idStr: string | undefined;
+
+      if (patternIndex === 0) {
+        typeStr = match[1];
+        idStr = match[2];
+      } else {
+        idStr = match[1];
+        typeStr = match[2];
+      }
+
+      if (typeStr !== undefined && idStr !== undefined) {
+        const type = typeStr.toUpperCase() as PIIType;
+        const id = parseInt(idStr, 10);
+
+        if (Object.values(PIIType).includes(type)) {
+          tags.push({
+            type,
+            id,
+            position: match.index,
+            matchedText: match[0],
+          });
+          matchedPositions.add(match.index);
+        }
+      }
+    }
+  }
+
+  // Sort by position ascending
+  tags.sort((a, b) => a.position - b.position);
+
+  return tags;
+}
+
+/**
+ * Extracts tags using strict matching (original behavior)
+ * Useful when you know tags haven't been mangled
+ */
+export function extractTagsStrict(anonymizedText: string): ExtractedTag[] {
+  const tags: ExtractedTag[] = [];
   const tagPattern = /<PII\s+type="([A-Z_]+)"\s+id="(\d+)"\s*\/>/g;
 
   let match: RegExpExecArray | null;
@@ -188,7 +323,7 @@ export function extractTags(anonymizedText: string): Array<{ type: PIIType; id: 
       const id = parseInt(idStr, 10);
 
       if (Object.values(PIIType).includes(type)) {
-        tags.push({ type, id, position: match.index });
+        tags.push({ type, id, position: match.index, matchedText: match[0] });
       }
     }
   }
@@ -199,7 +334,9 @@ export function extractTags(anonymizedText: string): Array<{ type: PIIType; id: 
 /**
  * Counts entities by type
  */
-export function countEntitiesByType(entities: DetectedEntity[]): Record<PIIType, number> {
+export function countEntitiesByType(
+  entities: DetectedEntity[]
+): Record<PIIType, number> {
   const counts: Record<PIIType, number> = {} as Record<PIIType, number>;
 
   // Initialize all types to 0
@@ -217,25 +354,40 @@ export function countEntitiesByType(entities: DetectedEntity[]): Record<PIIType,
 
 /**
  * Rehydrates anonymized text using the PII map
- * (For testing/debugging only - not part of the anonymization pipeline)
+ * Uses fuzzy matching to handle tags that may have been mangled by translation
+ *
+ * @param anonymizedText - Text containing PII tags (possibly mangled)
+ * @param piiMap - Map of PII keys to original values
+ * @param strict - If true, use strict matching (original behavior). Default: false
+ * @returns Text with PII tags replaced by original values
  */
-export function rehydrate(anonymizedText: string, piiMap: RawPIIMap): string {
+export function rehydrate(
+  anonymizedText: string,
+  piiMap: RawPIIMap,
+  strict: boolean = false
+): string {
   let result = anonymizedText;
-  const tags = extractTags(anonymizedText);
+  const tags = strict
+    ? extractTagsStrict(anonymizedText)
+    : extractTags(anonymizedText);
 
   // Sort by position descending for replacement
+  // (replacing from end to start preserves earlier offsets)
   tags.sort((a, b) => b.position - a.position);
 
-  for (const { type, id, position } of tags) {
+  for (const { type, id, position, matchedText } of tags) {
     const key = createPIIMapKey(type, id);
     const original = piiMap.get(key);
 
     if (original !== undefined) {
-      const tag = generateTag(type, id);
-      result = result.slice(0, position) + original + result.slice(position + tag.length);
+      // Use the actual matched text length for replacement
+      // This handles mangled tags where the length differs from the canonical form
+      result =
+        result.slice(0, position) +
+        original +
+        result.slice(position + matchedText.length);
     }
   }
 
   return result;
 }
-
