@@ -774,19 +774,10 @@ export function loadSemanticData(): SemanticData {
     );
   }
 
-  console.log("Loading semantic enrichment data...");
-  const startTime = performance.now();
-
   const names = parseNameDict(path.join(dataDir, "nam_dict.txt"));
   const cities = parseCities(path.join(dataDir, "cities15000.txt"));
   const countries = parseCountries(path.join(dataDir, "countryInfo.txt"));
   const regions = parseRegions(path.join(dataDir, "admin1CodesASCII.txt"));
-
-  const endTime = performance.now();
-  console.log(
-    `Loaded semantic data in ${(endTime - startTime).toFixed(0)}ms: ` +
-      `${names.size} names, ${cities.size} cities, ${countries.size} countries, ${regions.size} regions`
-  );
 
   semanticData = {
     names,

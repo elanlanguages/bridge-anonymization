@@ -44,7 +44,7 @@ export interface TaggingResult {
 /**
  * Generates a PII placeholder tag
  * Format: <PII type="TYPE" id="N"/> or <PII type="TYPE" gender="X" id="N"/> etc.
- * 
+ *
  * Semantic attributes (gender, scope) are included when provided and not 'unknown'
  */
 export function generateTag(
@@ -53,17 +53,17 @@ export function generateTag(
   semantic?: SemanticAttributes
 ): string {
   let attrs = `type="${type}"`;
-  
+
   // Add semantic attributes if present and meaningful
-  if (semantic?.gender && semantic.gender !== 'unknown') {
+  if (semantic?.gender && semantic.gender !== "unknown") {
     attrs += ` gender="${semantic.gender}"`;
   }
-  if (semantic?.scope && semantic.scope !== 'unknown') {
+  if (semantic?.scope && semantic.scope !== "unknown") {
     attrs += ` scope="${semantic.scope}"`;
   }
-  
+
   attrs += ` id="${id}"`;
-  
+
   return `<PII ${attrs}/>`;
 }
 
@@ -79,7 +79,7 @@ export interface ParsedTag {
 /**
  * Parses a PII tag to extract type, id, and semantic attributes
  * Returns null if not a valid tag
- * 
+ *
  * Supports formats:
  * - <PII type="TYPE" id="N"/>
  * - <PII type="TYPE" gender="X" id="N"/>
@@ -91,7 +91,7 @@ export function parseTag(tag: string): ParsedTag | null {
   const match = tag.match(
     /^<PII\s+type="([A-Z_]+)"(?:\s+gender="(\w+)")?(?:\s+scope="(\w+)")?\s+id="(\d+)"\s*\/>$/
   );
-  
+
   if (match === null) {
     return null;
   }
@@ -111,13 +111,24 @@ export function parseTag(tag: string): ParsedTag | null {
 
   // Build semantic attributes if present
   let semantic: SemanticAttributes | undefined;
-  if (genderStr || scopeStr) {
+  if (
+    (genderStr !== undefined && genderStr !== "") ||
+    (scopeStr !== undefined && scopeStr !== "")
+  ) {
     semantic = {};
-    if (genderStr && ['male', 'female', 'neutral', 'unknown'].includes(genderStr)) {
-      semantic.gender = genderStr as SemanticAttributes['gender'];
+    if (
+      genderStr !== undefined &&
+      genderStr !== "" &&
+      ["male", "female", "neutral", "unknown"].includes(genderStr)
+    ) {
+      semantic.gender = genderStr as SemanticAttributes["gender"];
     }
-    if (scopeStr && ['city', 'country', 'region', 'unknown'].includes(scopeStr)) {
-      semantic.scope = scopeStr as SemanticAttributes['scope'];
+    if (
+      scopeStr !== undefined &&
+      scopeStr !== "" &&
+      ["city", "country", "region", "unknown"].includes(scopeStr)
+    ) {
+      semantic.scope = scopeStr as SemanticAttributes["scope"];
     }
   }
 
@@ -352,13 +363,30 @@ export function extractTags(anonymizedText: string): ExtractedTag[] {
         if (Object.values(PIIType).includes(type)) {
           // Build semantic attributes if present
           let semantic: SemanticAttributes | undefined;
-          if (genderStr || scopeStr) {
+          if (
+            (genderStr !== undefined && genderStr !== "") ||
+            (scopeStr !== undefined && scopeStr !== "")
+          ) {
             semantic = {};
-            if (genderStr && ['male', 'female', 'neutral', 'unknown'].includes(genderStr.toLowerCase())) {
-              semantic.gender = genderStr.toLowerCase() as SemanticAttributes['gender'];
+            if (
+              genderStr !== undefined &&
+              genderStr !== "" &&
+              ["male", "female", "neutral", "unknown"].includes(
+                genderStr.toLowerCase()
+              )
+            ) {
+              semantic.gender =
+                genderStr.toLowerCase() as SemanticAttributes["gender"];
             }
-            if (scopeStr && ['city', 'country', 'region', 'unknown'].includes(scopeStr.toLowerCase())) {
-              semantic.scope = scopeStr.toLowerCase() as SemanticAttributes['scope'];
+            if (
+              scopeStr !== undefined &&
+              scopeStr !== "" &&
+              ["city", "country", "region", "unknown"].includes(
+                scopeStr.toLowerCase()
+              )
+            ) {
+              semantic.scope =
+                scopeStr.toLowerCase() as SemanticAttributes["scope"];
             }
           }
 
@@ -389,7 +417,8 @@ export function extractTags(anonymizedText: string): ExtractedTag[] {
 export function extractTagsStrict(anonymizedText: string): ExtractedTag[] {
   const tags: ExtractedTag[] = [];
   // Pattern matches: <PII type="X" [gender="Y"] [scope="Z"] id="N"/>
-  const tagPattern = /<PII\s+type="([A-Z_]+)"(?:\s+gender="(\w+)")?(?:\s+scope="(\w+)")?\s+id="(\d+)"\s*\/>/g;
+  const tagPattern =
+    /<PII\s+type="([A-Z_]+)"(?:\s+gender="(\w+)")?(?:\s+scope="(\w+)")?\s+id="(\d+)"\s*\/>/g;
 
   let match: RegExpExecArray | null;
   while ((match = tagPattern.exec(anonymizedText)) !== null) {
@@ -405,13 +434,24 @@ export function extractTagsStrict(anonymizedText: string): ExtractedTag[] {
       if (Object.values(PIIType).includes(type)) {
         // Build semantic attributes if present
         let semantic: SemanticAttributes | undefined;
-        if (genderStr || scopeStr) {
+        if (
+          (genderStr !== undefined && genderStr !== "") ||
+          (scopeStr !== undefined && scopeStr !== "")
+        ) {
           semantic = {};
-          if (genderStr && ['male', 'female', 'neutral', 'unknown'].includes(genderStr)) {
-            semantic.gender = genderStr as SemanticAttributes['gender'];
+          if (
+            genderStr !== undefined &&
+            genderStr !== "" &&
+            ["male", "female", "neutral", "unknown"].includes(genderStr)
+          ) {
+            semantic.gender = genderStr as SemanticAttributes["gender"];
           }
-          if (scopeStr && ['city', 'country', 'region', 'unknown'].includes(scopeStr)) {
-            semantic.scope = scopeStr as SemanticAttributes['scope'];
+          if (
+            scopeStr !== undefined &&
+            scopeStr !== "" &&
+            ["city", "country", "region", "unknown"].includes(scopeStr)
+          ) {
+            semantic.scope = scopeStr as SemanticAttributes["scope"];
           }
         }
 

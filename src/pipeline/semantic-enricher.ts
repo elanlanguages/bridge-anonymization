@@ -2,7 +2,7 @@
  * Semantic Enricher
  * Enriches PII spans with semantic attributes (gender, location scope)
  * for MT-friendly tags that preserve grammatical context.
- * 
+ *
  * This module uses data from the GeoNames and gender-guesser projects.
  * Data is automatically downloaded when using:
  *   createAnonymizer({ semantic: { enabled: true, autoDownload: true } })
@@ -13,8 +13,7 @@ import {
   PIIType,
   PersonGender,
   LocationScope,
-  SemanticAttributes,
-} from '../types/index.js';
+} from "../types/index.js";
 
 import {
   isSemanticDataAvailable,
@@ -23,7 +22,7 @@ import {
   lookupLocationType,
   getDataStats,
   getDataDirectory,
-} from './semantic-data-loader.js';
+} from "./semantic-data-loader.js";
 
 // Re-export data availability check and other exports from data loader
 export { isSemanticDataAvailable, getDataDirectory };
@@ -46,7 +45,7 @@ export interface EnricherConfig {
 export interface GenderResult {
   gender: PersonGender;
   confidence: number;
-  source: 'database' | 'inference' | 'unknown';
+  source: "database" | "inference" | "unknown";
 }
 
 /**
@@ -67,25 +66,25 @@ let dataInitialized = false;
  */
 function ensureDataLoaded(): void {
   if (dataInitialized) return;
-  
+
   if (!isSemanticDataAvailable()) {
     throw new Error(
       `Semantic enrichment data not available. ` +
-      `Use ensureSemanticData() or createAnonymizer({ semantic: { enabled: true } }) to download.`
+        `Use ensureSemanticData() or createAnonymizer({ semantic: { enabled: true } }) to download.`
     );
   }
-  
+
   loadSemanticData();
   dataInitialized = true;
 }
 
 /**
  * Enriches PII spans with semantic attributes based on lookup tables
- * 
+ *
  * @param spans - Array of detected PII spans
  * @param config - Optional configuration for enrichment
  * @returns Array of spans with semantic attributes added
- * 
+ *
  * @example
  * ```typescript
  * const enrichedSpans = enrichSemantics(spans, { locale: 'de' });
@@ -105,7 +104,7 @@ export function enrichSemantics(
     }
     ensureDataLoaded();
   }
-  
+
   return spans.map((span) => {
     switch (span.type) {
       case PIIType.PERSON:
@@ -123,7 +122,7 @@ export function enrichSemantics(
  */
 function enrichPerson(span: SpanMatch, locale?: string): SpanMatch {
   const result = inferGender(span.text, locale);
-  
+
   return {
     ...span,
     semantic: {
@@ -138,7 +137,7 @@ function enrichPerson(span: SpanMatch, locale?: string): SpanMatch {
  */
 function enrichLocation(span: SpanMatch): SpanMatch {
   const result = classifyLocation(span.text);
-  
+
   return {
     ...span,
     semantic: {
@@ -150,11 +149,11 @@ function enrichLocation(span: SpanMatch): SpanMatch {
 
 /**
  * Infers gender from a person's name using the lookup database
- * 
+ *
  * @param name - Full name or first name
  * @param locale - Optional locale for disambiguation (e.g., 'de', 'it')
  * @returns Gender result with confidence
- * 
+ *
  * @example
  * ```typescript
  * inferGender('Mary Smith'); // { gender: 'female', confidence: 1.0 }
@@ -165,38 +164,38 @@ function enrichLocation(span: SpanMatch): SpanMatch {
 export function inferGender(name: string, locale?: string): GenderResult {
   // Extract first name (handles "John Smith" -> "John")
   const firstName = extractFirstName(name);
-  if (!firstName) {
-    return { gender: 'unknown', confidence: 0, source: 'unknown' };
+  if (firstName === null || firstName === "") {
+    return { gender: "unknown", confidence: 0, source: "unknown" };
   }
-  
+
   // Check if data is available
   if (!dataInitialized && !isSemanticDataAvailable()) {
-    return { gender: 'unknown', confidence: 0, source: 'unknown' };
+    return { gender: "unknown", confidence: 0, source: "unknown" };
   }
-  
+
   if (!dataInitialized) {
     ensureDataLoaded();
   }
-  
+
   const gender = lookupGender(firstName, locale);
-  
-  if (!gender) {
-    return { gender: 'unknown', confidence: 0, source: 'unknown' };
+
+  if (gender === undefined || gender === "") {
+    return { gender: "unknown", confidence: 0, source: "unknown" };
   }
-  
+
   return {
     gender: gender as PersonGender,
     confidence: 1.0,
-    source: 'database',
+    source: "database",
   };
 }
 
 /**
  * Classifies a location by its geographic scope
- * 
+ *
  * @param location - Location name
  * @returns Classification result with confidence
- * 
+ *
  * @example
  * ```typescript
  * classifyLocation('Berlin'); // { scope: 'city', confidence: 1.0 }
@@ -207,16 +206,16 @@ export function inferGender(name: string, locale?: string): GenderResult {
 export function classifyLocation(location: string): LocationResult {
   // Check if data is available
   if (!dataInitialized && !isSemanticDataAvailable()) {
-    return { scope: 'unknown', confidence: 0 };
+    return { scope: "unknown", confidence: 0 };
   }
-  
+
   if (!dataInitialized) {
     ensureDataLoaded();
   }
-  
+
   const normalized = normalizeLocationName(location);
   const result = lookupLocationType(normalized);
-  
+
   if (!result) {
     // Try variations
     const variations = generateLocationVariations(location);
@@ -230,10 +229,10 @@ export function classifyLocation(location: string): LocationResult {
         };
       }
     }
-    
-    return { scope: 'unknown', confidence: 0 };
+
+    return { scope: "unknown", confidence: 0 };
   }
-  
+
   return {
     scope: result.type as LocationScope,
     confidence: 1.0,
@@ -247,13 +246,13 @@ export function classifyLocation(location: string): LocationResult {
 function extractFirstName(fullName: string): string | null {
   const trimmed = fullName.trim();
   if (!trimmed) return null;
-  
+
   // Handle common prefixes (Dr., Mr., Mrs., etc.)
   const withoutPrefix = trimmed.replace(
     /^(dr\.?|mr\.?|mrs\.?|ms\.?|prof\.?|rev\.?|sir|dame|lord|lady)\s+/i,
-    ''
+    ""
   );
-  
+
   // Split and get first word
   const parts = withoutPrefix.split(/\s+/);
   return parts[0] ?? null;
@@ -263,13 +262,15 @@ function extractFirstName(fullName: string): string | null {
  * Normalizes a location name for lookup
  */
 function normalizeLocationName(location: string): string {
-  return location
-    .toLowerCase()
-    .trim()
-    // Remove common suffixes
-    .replace(/\s+(city|town|village|state|province|region|county)$/i, '')
-    // Normalize whitespace
-    .replace(/\s+/g, ' ');
+  return (
+    location
+      .toLowerCase()
+      .trim()
+      // Remove common suffixes
+      .replace(/\s+(city|town|village|state|province|region|county)$/i, "")
+      // Normalize whitespace
+      .replace(/\s+/g, " ")
+  );
 }
 
 /**
@@ -278,41 +279,41 @@ function normalizeLocationName(location: string): string {
 function generateLocationVariations(location: string): string[] {
   const normalized = normalizeLocationName(location);
   const variations: string[] = [];
-  
+
   // Try without "the"
-  if (normalized.startsWith('the ')) {
+  if (normalized.startsWith("the ")) {
     variations.push(normalized.slice(4));
   }
-  
+
   // Try without common articles in other languages
   const articlePatterns = [
     /^(la|le|les|el|los|las|il|lo|gli|i|die|der|das|de|het)\s+/i,
   ];
   for (const pattern of articlePatterns) {
-    const withoutArticle = normalized.replace(pattern, '');
+    const withoutArticle = normalized.replace(pattern, "");
     if (withoutArticle !== normalized) {
       variations.push(withoutArticle);
     }
   }
-  
+
   // Try ASCII transliteration for common diacritics
   const asciiVersion = normalized
-    .replace(/[àáâãäå]/g, 'a')
-    .replace(/[èéêë]/g, 'e')
-    .replace(/[ìíîï]/g, 'i')
-    .replace(/[òóôõö]/g, 'o')
-    .replace(/[ùúûü]/g, 'u')
-    .replace(/[ñ]/g, 'n')
-    .replace(/[ç]/g, 'c')
-    .replace(/[ß]/g, 'ss')
-    .replace(/[æ]/g, 'ae')
-    .replace(/[ø]/g, 'o')
-    .replace(/[œ]/g, 'oe');
-  
+    .replace(/[àáâãäå]/g, "a")
+    .replace(/[èéêë]/g, "e")
+    .replace(/[ìíîï]/g, "i")
+    .replace(/[òóôõö]/g, "o")
+    .replace(/[ùúûü]/g, "u")
+    .replace(/[ñ]/g, "n")
+    .replace(/[ç]/g, "c")
+    .replace(/[ß]/g, "ss")
+    .replace(/[æ]/g, "ae")
+    .replace(/[ø]/g, "o")
+    .replace(/[œ]/g, "oe");
+
   if (asciiVersion !== normalized) {
     variations.push(asciiVersion);
   }
-  
+
   return variations;
 }
 
@@ -336,14 +337,14 @@ export function hasName(name: string): boolean {
   if (!dataInitialized && !isSemanticDataAvailable()) {
     return false;
   }
-  
+
   if (!dataInitialized) {
     ensureDataLoaded();
   }
-  
+
   const firstName = extractFirstName(name);
-  if (!firstName) return false;
-  
+  if (firstName === null || firstName === "") return false;
+
   return lookupGender(firstName) !== undefined;
 }
 
@@ -354,11 +355,11 @@ export function hasLocation(location: string): boolean {
   if (!dataInitialized && !isSemanticDataAvailable()) {
     return false;
   }
-  
+
   if (!dataInitialized) {
     ensureDataLoaded();
   }
-  
+
   const normalized = normalizeLocationName(location);
   return lookupLocationType(normalized) !== undefined;
 }
