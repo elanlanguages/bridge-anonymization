@@ -1,0 +1,23 @@
+# Codecov configuration
+# https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        # Overall project coverage target
+        target: 80%
+        threshold: 2%
+    patch:
+      default:
+        # Coverage for new/changed code in PRs
+        # Set to informational (won't fail the PR)
+        informational: true
+        # Or alternatively, set a lower target:
+        # target: 70%
+
+comment:
+  layout: "header, diff, flags, files"
+  behavior: default
+  require_changes: true
+
