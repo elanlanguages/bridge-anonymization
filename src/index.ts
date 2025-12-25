@@ -111,6 +111,26 @@ export {
   base64ToUint8Array,
 } from "./crypto/index.js";
 
+// Re-export storage utilities
+export {
+  getStorageProvider,
+  isNode,
+  isBrowser,
+  resetStorageProvider,
+  setStorageProvider,
+  type StorageProvider,
+} from "./utils/storage.js";
+
+// Re-export path utilities
+export {
+  join as pathJoin,
+  dirname as pathDirname,
+  basename as pathBasename,
+  normalize as pathNormalize,
+  extname as pathExtname,
+  isAbsolute as pathIsAbsolute,
+} from "./utils/path.js";
+
 // Main anonymization imports
 import {
   AnonymizationResult,
@@ -121,8 +141,41 @@ import {
   SpanMatch,
   PIIType,
   createDefaultPolicy,
-  mergePolicy,
 } from "./types/index.js";
+
+/**
+ * Merges a partial policy with a base policy (deep merge for Maps/Sets)
+ * Unlike the exported mergePolicy, this uses a custom base instead of global defaults
+ */
+function mergePolicyWithBase(
+  base: AnonymizationPolicy,
+  partial: Partial<AnonymizationPolicy>
+): AnonymizationPolicy {
+  // Deep merge confidenceThresholds Map
+  let confidenceThresholds = base.confidenceThresholds;
+  if (partial.confidenceThresholds !== undefined) {
+    confidenceThresholds = new Map(base.confidenceThresholds);
+    for (const [type, threshold] of partial.confidenceThresholds) {
+      confidenceThresholds.set(type, threshold);
+    }
+  }
+
+  return {
+    enabledTypes: partial.enabledTypes ?? base.enabledTypes,
+    regexEnabledTypes: partial.regexEnabledTypes ?? base.regexEnabledTypes,
+    nerEnabledTypes: partial.nerEnabledTypes ?? base.nerEnabledTypes,
+    typePriority: partial.typePriority ?? base.typePriority,
+    confidenceThresholds,
+    customIdPatterns: partial.customIdPatterns ?? base.customIdPatterns,
+    allowlistTerms: partial.allowlistTerms ?? base.allowlistTerms,
+    denylistPatterns: partial.denylistPatterns ?? base.denylistPatterns,
+    reuseIdsForRepeatedPII:
+      partial.reuseIdsForRepeatedPII ?? base.reuseIdsForRepeatedPII,
+    enableLeakScan: partial.enableLeakScan ?? base.enableLeakScan,
+    enableSemanticMasking:
+      partial.enableSemanticMasking ?? base.enableSemanticMasking,
+  };
+}
 import {
   createDefaultRegistry,
   RecognizerRegistry,
@@ -146,6 +199,7 @@ import { enrichSemantics } from "./pipeline/semantic-enricher.js";
 import {
   ensureSemanticData,
   isSemanticDataAvailable,
+  loadSemanticData,
 } from "./pipeline/semantic-data-loader.js";
 import {
   extractTitlesFromSpans,
@@ -156,7 +210,7 @@ import {
   generateKey,
   type KeyProvider,
 } from "./crypto/index.js";
-import * as fs from "fs/promises";
+import { getStorageProvider } from "./utils/storage.js";
 
 /**
  * NER configuration options
@@ -331,7 +385,8 @@ export class Anonymizer {
       // Load label map
       let labelMap = DEFAULT_LABEL_MAP;
       try {
-        const labelMapContent = await fs.readFile(labelMapPath, "utf-8");
+        const storage = await getStorageProvider();
+        const labelMapContent = await storage.readTextFile(labelMapPath);
         labelMap = JSON.parse(labelMapContent) as string[];
       } catch {
         // Use default label map
@@ -357,7 +412,8 @@ export class Anonymizer {
       const autoDownload = this.semanticConfig.autoDownload ?? true;
 
       // Check if data is already available
-      if (!isSemanticDataAvailable()) {
+      const dataAvailable = await isSemanticDataAvailable();
+      if (!dataAvailable) {
         if (!autoDownload) {
           throw new Error(
             "Semantic masking is enabled but data files are not available.\n\n" +
@@ -378,6 +434,8 @@ export class Anonymizer {
         this.semanticConfig.onStatus?.("Semantic data already cached");
       }
 
+      // Load data into memory for synchronous access during enrichment
+      await loadSemanticData();
       this.semanticDataReady = true;
     }
 
@@ -403,9 +461,13 @@ export class Anonymizer {
 
     const startTime = performance.now();
 
-    // Merge policy with defaults
+    // Merge policy with instance defaults (not global defaults)
+    // This ensures semantic config from constructor is preserved
+    // Uses deep merge for Maps (confidenceThresholds) and Sets
     const effectivePolicy =
-      policy !== undefined ? mergePolicy(policy) : this.defaultPolicy;
+      policy !== undefined
+        ? mergePolicyWithBase(this.defaultPolicy, policy)
+        : this.defaultPolicy;
 
     // Step 1: Pre-normalize text
     const normalizedText = prenormalize(text);

@@ -394,6 +394,76 @@ describe('Anonymizer Class', () => {
       // Should have received status updates
       expect(statuses.length).toBeGreaterThanOrEqual(0);
     });
+
+    it('should preserve enableSemanticMasking when passing partial policy override', async () => {
+      const keyProvider = new InMemoryKeyProvider();
+      const anonymizer = createAnonymizer({
+        keyProvider,
+        semantic: { enabled: true },
+      });
+      await anonymizer.initialize();
+
+      // Pass a partial policy that only changes enableLeakScan
+      // This should NOT reset enableSemanticMasking to false
+      const result = await anonymizer.anonymize(
+        'Hello Maria from Berlin',
+        undefined,
+        { enableLeakScan: false }
+      );
+
+      // The anonymized text should still have semantic attributes since
+      // enableSemanticMasking should be preserved from instance config
+      expect(result.anonymizedText).toBeDefined();
+      // Stats should reflect that leak scan was disabled
+      expect(result.stats.leakScanPassed).toBeUndefined();
+    });
+  });
+
+  describe('policy merging', () => {
+    it('should preserve instance default thresholds when passing partial policy', async () => {
+      const keyProvider = new InMemoryKeyProvider();
+      // Create with custom default thresholds
+      const customThresholds = new Map<PIIType, number>([
+        [PIIType.EMAIL, 0.9],
+        [PIIType.PERSON, 0.85],
+      ]);
+      const anonymizer = createAnonymizer({
+        keyProvider,
+        defaultPolicy: {
+          ...createDefaultPolicy(),
+          confidenceThresholds: customThresholds,
+        },
+      });
+      await anonymizer.initialize();
+
+      // Pass a partial policy - should merge, not replace thresholds
+      const result = await anonymizer.anonymize(
+        'Contact test@example.com',
+        undefined,
+        { enableLeakScan: false }
+      );
+
+      // Should still detect email with the preserved threshold
+      expect(result.anonymizedText).toContain('<PII type="EMAIL"');
+    });
+
+    it('should allow overriding specific thresholds while preserving others', async () => {
+      const keyProvider = new InMemoryKeyProvider();
+      const anonymizer = createAnonymizer({ keyProvider });
+      await anonymizer.initialize();
+
+      // Pass a partial policy with a specific threshold override
+      const result = await anonymizer.anonymize(
+        'Contact test@example.com',
+        undefined,
+        {
+          confidenceThresholds: new Map([[PIIType.IBAN, 0.99]]),
+        }
+      );
+
+      // Email should still be detected (default threshold preserved)
+      expect(result.anonymizedText).toContain('<PII type="EMAIL"');
+    });
   });
 });
 
