@@ -111,7 +111,7 @@ export async function deriveKey(
   const derivedBits = await globalThis.crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: salt,
+      salt: salt as BufferSource,
       iterations: iterations,
       hash: "SHA-256",
     },
@@ -159,7 +159,7 @@ export async function encryptPIIMap(
   // Import key for AES-GCM
   const cryptoKey = await globalThis.crypto.subtle.importKey(
     "raw",
-    key,
+    key as BufferSource,
     { name: "AES-GCM" },
     false,
     ["encrypt"]
@@ -227,7 +227,7 @@ export async function decryptPIIMap(
   // Import key for AES-GCM
   const cryptoKey = await globalThis.crypto.subtle.importKey(
     "raw",
-    key,
+    key as BufferSource,
     { name: "AES-GCM" },
     false,
     ["decrypt"]
@@ -237,7 +237,7 @@ export async function decryptPIIMap(
   const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: iv,
+      iv: iv as BufferSource,
       tagLength: encConfig.authTagLength,
     },
     cryptoKey,
