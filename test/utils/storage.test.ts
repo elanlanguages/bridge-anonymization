@@ -385,10 +385,10 @@ describe("NodeStorageProvider", () => {
   });
 
   describe("getCacheDir", () => {
-    it("should return a path containing bridge-anonymization", () => {
+    it("should return a path containing rehydra", () => {
       const cacheDir = provider.getCacheDir("models");
 
-      expect(cacheDir).toContain("bridge-anonymization");
+      expect(cacheDir).toContain("rehydra");
       expect(cacheDir).toContain("models");
     });
 
@@ -457,7 +457,7 @@ describe("BrowserStorageProvider (mock tests)", () => {
 
     const cacheDir = provider.getCacheDir("models");
 
-    expect(cacheDir).toBe("bridge-anonymization/models");
+      expect(cacheDir).toBe("rehydra/models");
   });
 
   it("should return different virtual paths for different subdirs", async () => {
@@ -467,8 +467,8 @@ describe("BrowserStorageProvider (mock tests)", () => {
     const modelsDir = provider.getCacheDir("models");
     const dataDir = provider.getCacheDir("semantic-data");
 
-    expect(modelsDir).toBe("bridge-anonymization/models");
-    expect(dataDir).toBe("bridge-anonymization/semantic-data");
+      expect(modelsDir).toBe("rehydra/models");
+      expect(dataDir).toBe("rehydra/semantic-data");
   });
 
   it("should have mkdir as a no-op (returns void)", async () => {

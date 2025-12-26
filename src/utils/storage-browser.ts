@@ -10,10 +10,10 @@ import { join } from "./path.js";
 // Constants
 // ============================================================================
 
-const DB_NAME = "bridge-anonymization";
+const DB_NAME = "rehydra";
 const DB_VERSION = 1;
 const STORE_NAME = "files";
-const CACHE_PREFIX = "bridge-anonymization";
+const CACHE_PREFIX = "rehydra";
 
 // ============================================================================
 // IndexedDB Helpers

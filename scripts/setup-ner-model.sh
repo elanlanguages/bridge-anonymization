@@ -9,7 +9,7 @@
 # Options:
 #   --quantize       Create quantized model version
 #   --upload         Upload to Hugging Face Hub
-#   --repo <name>    HF repo name (default: elanlanguages/xlm-roberta-base-ner-hrl-onnx)
+#   --repo <name>    HF repo name (default: tjruesch/xlm-roberta-base-ner-hrl-onnx)
 #   --model <id>     Source model ID (default: Davlan/xlm-roberta-base-ner-hrl)
 #
 # Examples:
@@ -63,7 +63,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║           NER Model Setup for Bridge Anonymization         ║${NC}"
+echo -e "${BLUE}║           NER Model Setup for Rehydra                     ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -284,7 +284,7 @@ pipeline_tag: token-classification
 
 # XLM-RoBERTa NER (ONNX)
 
-ONNX export of [{model_id}](https://huggingface.co/{model_id}) for use with ONNX Runtime, Transformers.js, and bridge-anonymization.
+ONNX export of [{model_id}](https://huggingface.co/{model_id}) for use with ONNX Runtime, Transformers.js, and rehydra.
 
 ## Models
 
@@ -309,9 +309,9 @@ readme += f"""
 
 English, German, Spanish, French, Italian, Portuguese, Dutch, and more.
 
-## Usage with bridge-anonymization
+## Usage with rehydra
 
-See the [bridge-anonymization documentation](https://github.com/elanlanguages/bridge-anonymization) for usage instructions.
+See the [rehydra documentation](https://github.com/rehydra-ai/rehydra) for usage instructions.
 
 ## License
 
@@ -320,7 +320,7 @@ MIT License - see the base model [{model_id}](https://huggingface.co/{model_id})
 ## Credits
 
 - Original model by [Davlan](https://huggingface.co/Davlan)
-- ONNX export by [ELAN Languages](https://github.com/elanlanguages)
+- ONNX export by [rehydra.ai](https://github.com/rehydra-ai)
 """
 
 with open(f"{output_dir}/README.md", "w") as f:

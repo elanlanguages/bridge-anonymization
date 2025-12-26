@@ -1,5 +1,5 @@
 /**
- * Bridge Anonymization Module
+ * Rehydra Module
  * Main entry point for on-device PII anonymization
  */
 

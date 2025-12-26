@@ -1,8 +1,8 @@
-# Bridge Anonymization
+# Rehydra
 
-![License](https://img.shields.io/github/license/elanlanguages/bridge-anonymization)
-![Issues](https://img.shields.io/github/issues/elanlanguages/bridge-anonymization)
-[![codecov](https://codecov.io/github/elanlanguages/bridge-anonymization/graph/badge.svg?token=WX5RI0ZZJG)](https://codecov.io/github/elanlanguages/bridge-anonymization)
+![License](https://img.shields.io/github/license/rehydra-ai/rehydra)
+![Issues](https://img.shields.io/github/issues/rehydra-ai/rehydra)
+[![codecov](https://codecov.io/github/rehydra-ai/rehydra/graph/badge.svg?token=WX5RI0ZZJG)](https://codecov.io/github/rehydra-ai/rehydra)
 
 On-device PII anonymization module for high-privacy AI workflows. Detects and replaces Personally Identifiable Information (PII) with placeholder tags while maintaining an encrypted mapping for later rehydration.
 
@@ -23,13 +23,13 @@ On-device PII anonymization module for high-privacy AI workflows. Detects and re
 ### Node.js / Bun
 
 ```bash
-npm install @elanlanguages/bridge-anonymization
+npm install rehydra
 ```
 
 ### Browser (with bundler)
 
 ```bash
-npm install @elanlanguages/bridge-anonymization onnxruntime-web
+npm install rehydra onnxruntime-web
 ```
 
 ### Browser (without bundler)
@@ -37,7 +37,7 @@ npm install @elanlanguages/bridge-anonymization onnxruntime-web
 ```html
 <script type="module">
   // Import directly from your dist folder or CDN
-  import { createAnonymizer } from './node_modules/@elanlanguages/bridge-anonymization/dist/index.js';
+  import { createAnonymizer } from './node_modules/rehydra/dist/index.js';
   
   // onnxruntime-web is automatically loaded from CDN when needed
 </script>
@@ -50,7 +50,7 @@ npm install @elanlanguages/bridge-anonymization onnxruntime-web
 For structured PII like emails, phones, IBANs, credit cards:
 
 ```typescript
-import { anonymizeRegexOnly } from '@elanlanguages/bridge-anonymization';
+import { anonymizeRegexOnly } from 'rehydra';
 
 const result = await anonymizeRegexOnly(
   'Contact john@example.com or call +49 30 123456. IBAN: DE89370400440532013000'
@@ -65,7 +65,7 @@ console.log(result.anonymizedText);
 The NER model is automatically downloaded on first use (~280 MB for quantized):
 
 ```typescript
-import { createAnonymizer } from '@elanlanguages/bridge-anonymization';
+import { createAnonymizer } from 'rehydra';
 
 const anonymizer = createAnonymizer({
   ner: { 
@@ -92,7 +92,7 @@ await anonymizer.dispose();
 Add gender and location scope for better machine translation:
 
 ```typescript
-import { createAnonymizer } from '@elanlanguages/bridge-anonymization';
+import { createAnonymizer } from 'rehydra';
 
 const anonymizer = createAnonymizer({
   ner: { mode: 'quantized' },
@@ -122,7 +122,7 @@ import {
   decryptPIIMap, 
   rehydrate,
   InMemoryKeyProvider 
-} from '@elanlanguages/bridge-anonymization';
+} from 'rehydra';
 
 // 1. Create a key provider (required to decrypt later)
 const keyProvider = new InMemoryKeyProvider();
@@ -143,7 +143,7 @@ console.log(result.anonymizedText);
 // "Hello <PII type="PERSON" id="1"/> from <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
 
 // 4. Translate (or do other AI workloads that preserve placeholders)
-const translated = await yourTranslationService(result.anonymizedText, { from: 'en', to: 'de' });
+const translated = await yourAIWorkflow(result.anonymizedText, { from: 'en', to: 'de' });
 // "Hallo <PII type="PERSON" id="1"/> von <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
 
 // 5. Decrypt the PII map using the same key
@@ -171,7 +171,7 @@ await anonymizer.dispose();
 ### Configuration Options
 
 ```typescript
-import { createAnonymizer, InMemoryKeyProvider } from '@elanlanguages/bridge-anonymization';
+import { createAnonymizer, InMemoryKeyProvider } from 'rehydra';
 
 const anonymizer = createAnonymizer({
   // NER configuration
@@ -236,7 +236,7 @@ await anonymizer.dispose();
 One-off anonymization (regex-only by default):
 
 ```typescript
-import { anonymize } from '@elanlanguages/bridge-anonymization';
+import { anonymize } from 'rehydra';
 
 const result = await anonymize('Contact test@example.com');
 ```
@@ -246,7 +246,7 @@ const result = await anonymize('Contact test@example.com');
 One-off anonymization with NER:
 
 ```typescript
-import { anonymizeWithNER } from '@elanlanguages/bridge-anonymization';
+import { anonymizeWithNER } from 'rehydra';
 
 const result = await anonymizeWithNER(
   'Hello John Smith',
@@ -259,7 +259,7 @@ const result = await anonymizeWithNER(
 Fast regex-only anonymization:
 
 ```typescript
-import { anonymizeRegexOnly } from '@elanlanguages/bridge-anonymization';
+import { anonymizeRegexOnly } from 'rehydra';
 
 const result = await anonymizeRegexOnly('Card: 4111111111111111');
 ```
@@ -271,7 +271,7 @@ const result = await anonymizeRegexOnly('Card: 4111111111111111');
 Decrypts the PII map for rehydration:
 
 ```typescript
-import { decryptPIIMap } from '@elanlanguages/bridge-anonymization';
+import { decryptPIIMap } from 'rehydra';
 
 const piiMap = await decryptPIIMap(result.piiMap, encryptionKey);
 // Returns Map<string, string> where key is "PERSON:1" and value is "John Smith"
@@ -282,7 +282,7 @@ const piiMap = await decryptPIIMap(result.piiMap, encryptionKey);
 Replaces placeholders with original values:
 
 ```typescript
-import { rehydrate } from '@elanlanguages/bridge-anonymization';
+import { rehydrate } from 'rehydra';
 
 const original = rehydrate(translatedText, piiMap);
 ```
@@ -346,7 +346,7 @@ interface AnonymizationResult {
 ### Anonymization Policy
 
 ```typescript
-import { createAnonymizer, PIIType } from '@elanlanguages/bridge-anonymization';
+import { createAnonymizer, PIIType } from 'rehydra';
 
 const anonymizer = createAnonymizer({
   ner: { mode: 'quantized' },
@@ -377,7 +377,7 @@ const anonymizer = createAnonymizer({
 Add domain-specific patterns:
 
 ```typescript
-import { createCustomIdRecognizer, PIIType, createAnonymizer } from '@elanlanguages/bridge-anonymization';
+import { createCustomIdRecognizer, PIIType, createAnonymizer } from 'rehydra';
 
 const customRecognizer = createCustomIdRecognizer([
   {
@@ -399,8 +399,8 @@ Models and semantic data are cached locally for offline use.
 
 | Data | macOS | Linux | Windows |
 |------|-------|-------|---------|
-| NER Models | `~/Library/Caches/bridge-anonymization/models/` | `~/.cache/bridge-anonymization/models/` | `%LOCALAPPDATA%/bridge-anonymization/models/` |
-| Semantic Data | `~/Library/Caches/bridge-anonymization/semantic-data/` | `~/.cache/bridge-anonymization/semantic-data/` | `%LOCALAPPDATA%/bridge-anonymization/semantic-data/` |
+| NER Models | `~/Library/Caches/rehydra/models/` | `~/.cache/rehydra/models/` | `%LOCALAPPDATA%/rehydra/models/` |
+| Semantic Data | `~/Library/Caches/rehydra/semantic-data/` | `~/.cache/rehydra/semantic-data/` | `%LOCALAPPDATA%/rehydra/semantic-data/` |
 
 ### Browser Cache
 
@@ -424,7 +424,7 @@ import {
   isSemanticDataDownloaded,
   downloadSemanticData,
   clearSemanticDataCache,
-} from '@elanlanguages/bridge-anonymization';
+} from 'rehydra';
 
 // Check if model is downloaded
 const hasModel = await isModelDownloaded('quantized');
@@ -457,7 +457,7 @@ import {
   ConfigKeyProvider,      // For production with pre-configured key
   KeyProvider,            // Interface for custom implementations
   generateKey,
-} from '@elanlanguages/bridge-anonymization';
+} from 'rehydra';
 
 // Development: In-memory key (generates random key, lost on page refresh)
 const devKeyProvider = new InMemoryKeyProvider();
@@ -502,7 +502,7 @@ The library works seamlessly in browsers without any special configuration.
       InMemoryKeyProvider,
       decryptPIIMap,
       rehydrate
-    } from './node_modules/@elanlanguages/bridge-anonymization/dist/index.js';
+    } from './node_modules/rehydra/dist/index.js';
     
     async function demo() {
       // Create anonymizer
@@ -556,7 +556,7 @@ The library works seamlessly in browsers without any special configuration.
 This library works with [Bun](https://bun.sh). Since `onnxruntime-node` is a native Node.js addon, Bun uses `onnxruntime-web`:
 
 ```bash
-bun add @elanlanguages/bridge-anonymization onnxruntime-web
+bun add rehydra onnxruntime-web
 ```
 
 Usage is identical - the library auto-detects the runtime.

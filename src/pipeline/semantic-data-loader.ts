@@ -181,7 +181,7 @@ export interface SemanticDataFileInfo {
  * Base URL for semantic data files hosted on Hugging Face
  */
 const HUGGINGFACE_BASE_URL =
-  "https://huggingface.co/datasets/tjruesch/bridge-anonymization-semantic/resolve/main";
+  "https://huggingface.co/datasets/tjruesch/rehydra-semantic/resolve/main";
 
 /**
  * Registry of semantic data files and their download URLs
@@ -270,7 +270,7 @@ async function downloadFileData(
 ): Promise<Uint8Array> {
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "bridge-anonymization/1.0.0",
+      "User-Agent": "rehydra/1.0.0",
     },
   });
 

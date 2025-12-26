@@ -100,7 +100,7 @@ export class NodeStorageProvider implements StorageProvider {
         break;
     }
 
-    return nodePath.join(baseDir, "bridge-anonymization", subdir);
+    return nodePath.join(baseDir, "rehydra", subdir);
   }
 }
 

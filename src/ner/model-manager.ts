@@ -220,7 +220,7 @@ async function downloadFileData(
 ): Promise<Uint8Array> {
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "bridge-anonymization/1.0.0",
+      "User-Agent": "rehydra/1.0.0",
     },
   });
 

@@ -13,7 +13,7 @@ describe("BrowserStorageProvider", () => {
   beforeEach(() => {
     provider = new BrowserStorageProvider();
     // Clear IndexedDB between tests
-    indexedDB.deleteDatabase("bridge-anonymization");
+    indexedDB.deleteDatabase("rehydra");
   });
 
   afterEach(() => {
@@ -23,13 +23,13 @@ describe("BrowserStorageProvider", () => {
   describe("getCacheDir", () => {
     it("should return virtual cache path", () => {
       const cacheDir = provider.getCacheDir("models");
-      expect(cacheDir).toBe("bridge-anonymization/models");
+      expect(cacheDir).toBe("rehydra/models");
     });
 
     it("should return different paths for different subdirs", () => {
-      expect(provider.getCacheDir("models")).toBe("bridge-anonymization/models");
+      expect(provider.getCacheDir("models")).toBe("rehydra/models");
       expect(provider.getCacheDir("semantic-data")).toBe(
-        "bridge-anonymization/semantic-data"
+        "rehydra/semantic-data"
       );
     });
   });
@@ -168,7 +168,7 @@ describe("BrowserStorageProvider", () => {
       // Without OPFS available (fake-indexeddb doesn't support it),
       // the file falls back to IndexedDB
 
-      const modelPath = "bridge-anonymization/models/quantized/model.onnx";
+      const modelPath = "rehydra/models/quantized/model.onnx";
       const testData = new Uint8Array([0, 1, 2, 3]);
 
       await provider.writeFile(modelPath, testData);
@@ -179,7 +179,7 @@ describe("BrowserStorageProvider", () => {
     });
 
     it("should identify .bin files in models as OPFS candidates", async () => {
-      const binPath = "bridge-anonymization/models/weights.bin";
+      const binPath = "rehydra/models/weights.bin";
       const testData = new Uint8Array([10, 20, 30]);
 
       await provider.writeFile(binPath, testData);
@@ -189,7 +189,7 @@ describe("BrowserStorageProvider", () => {
     });
 
     it("should use IndexedDB for non-model files", async () => {
-      const textPath = "bridge-anonymization/config.json";
+      const textPath = "rehydra/config.json";
       const testContent = '{"key": "value"}';
 
       await provider.writeFile(textPath, testContent);
@@ -204,7 +204,7 @@ describe("BrowserStorageProvider", () => {
       // Write something that's not a string or Uint8Array directly to IndexedDB
       // This is an edge case that shouldn't normally happen
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open("bridge-anonymization", 1);
+        const request = indexedDB.open("rehydra", 1);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve(request.result);
         request.onupgradeneeded = (event) => {
