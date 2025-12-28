@@ -597,6 +597,33 @@ await chat1.rehydrate(translatedText1);  // Uses Alice's PII map
 await chat2.rehydrate(translatedText2);  // Uses Bob's PII map
 ```
 
+### Multi-Message Conversations
+
+Within a session, entity IDs are consistent across multiple `anonymize()` calls:
+
+```typescript
+const session = anonymizer.session('chat-123');
+
+// Message 1: User provides contact info
+const msg1 = await session.anonymize('Contact me at user@example.com');
+// → "Contact me at <PII type="EMAIL" id="1"/>"
+
+// Message 2: References same email + new one  
+const msg2 = await session.anonymize('CC: user@example.com and admin@example.com');
+// → "CC: <PII type="EMAIL" id="1"/> and <PII type="EMAIL" id="2"/>"
+//        ↑ Same ID (reused)                ↑ New ID
+
+// Message 3: No PII
+await session.anonymize('Please translate to German');
+// Previous PII preserved
+
+// All messages can be rehydrated correctly
+await session.rehydrate(msg1.anonymizedText); // ✓
+await session.rehydrate(msg2.anonymizedText); // ✓
+```
+
+This ensures that follow-up messages referencing the same PII produce consistent placeholders, and rehydration works correctly across the entire conversation.
+
 ### SQLite Provider (Node.js + Bun)
 
 The SQLite provider works on both Node.js and Bun with automatic runtime detection:
