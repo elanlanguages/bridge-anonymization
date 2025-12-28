@@ -7,6 +7,18 @@
   "browser": "./dist/browser.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "imports": {
+    "#storage": {
+      "browser": "./dist/utils/storage.browser.js",
+      "node": "./dist/utils/storage.js",
+      "default": "./dist/utils/storage.js"
+    },
+    "#onnx-runtime": {
+      "browser": "./dist/ner/onnx-runtime.browser.js",
+      "node": "./dist/ner/onnx-runtime.js",
+      "default": "./dist/ner/onnx-runtime.js"
+    }
+  },
   "exports": {
     ".": {
       "browser": {
@@ -46,6 +58,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:browser-bundle": "bash scripts/test-browser-bundle.sh",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "setup:ner": "bash scripts/setup-ner-model.sh --quantize",

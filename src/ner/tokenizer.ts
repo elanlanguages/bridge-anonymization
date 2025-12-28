@@ -325,7 +325,7 @@ export class WordPieceTokenizer {
  * Uses storage abstraction for browser compatibility
  */
 export async function loadVocabFromFile(filePath: string): Promise<Map<string, number>> {
-  const { getStorageProvider } = await import('../utils/storage.js');
+  const { getStorageProvider } = await import('#storage');
   const storage = await getStorageProvider();
   const content = await storage.readTextFile(filePath);
   

@@ -4,7 +4,7 @@
  * Supports both onnxruntime-node and onnxruntime-web
  */
 
-import { loadRuntime, type OrtRuntime } from "./onnx-runtime.js";
+import { loadRuntime, type OrtRuntime } from "#onnx-runtime";
 import { SpanMatch, AnonymizationPolicy } from "../types/index.js";
 import {
   WordPieceTokenizer,
@@ -17,7 +17,7 @@ import {
   cleanupSpanBoundaries,
   mergeAdjacentSpans,
 } from "./bio-decoder.js";
-import { getStorageProvider, isBrowser } from "../utils/storage.js";
+import { getStorageProvider, isBrowser } from "#storage";
 
 /**
  * NER Model configuration

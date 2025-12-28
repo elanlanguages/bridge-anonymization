@@ -6,7 +6,7 @@
 export * from './tokenizer.js';
 export * from './bio-decoder.js';
 export * from './ner-model.js';
-export { loadRuntime, detectRuntime, getRuntimeType } from './onnx-runtime.js';
+export { loadRuntime, detectRuntime, getRuntimeType } from '#onnx-runtime';
 export {
   type NERModelMode,
   type ModelInfo,

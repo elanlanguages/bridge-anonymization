@@ -119,7 +119,7 @@ export {
   resetStorageProvider,
   setStorageProvider,
   type StorageProvider,
-} from "./utils/storage.js";
+} from "#storage";
 
 // Re-export PII storage providers (for persisting encrypted PII maps)
 // This includes SQLitePIIStorageProvider for Node.js

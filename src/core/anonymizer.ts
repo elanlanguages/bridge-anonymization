@@ -51,7 +51,7 @@ import {
   generateKey,
   type KeyProvider,
 } from "../crypto/index.js";
-import { getStorageProvider } from "../utils/storage.js";
+import { getStorageProvider } from "#storage";
 
 // Re-export RawPIIMap for session usage
 export type { RawPIIMap } from "../pipeline/tagger.js";

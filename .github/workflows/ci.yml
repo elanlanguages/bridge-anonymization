@@ -1,43 +1,135 @@
 name: CI
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-    test:
-        name: Test
-        runs-on: ubuntu-latest
+  test:
+    name: Test
+    runs-on: ubuntu-latest
 
-        strategy:
-            matrix:
-                node-version: [18, 20, 22]
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
 
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Setup Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ matrix.node-version }}
-                  cache: "npm"
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
-            - name: Install dependencies
-              run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            - name: Build
-              run: npm run build
+      - name: Build
+        run: npm run build
 
-            - name: Lint
-              run: npm run lint
+      - name: Lint
+        run: npm run lint
 
-            - name: Run tests
-              run: npm run test:coverage
+      - name: Run tests
+        run: npm run test:coverage
 
-            - name: Upload results to Codecov
-              uses: codecov/codecov-action@v5
-              with:
-                  token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  browser-bundle:
+    name: Browser Bundle Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Create test project
+        run: |
+          mkdir -p test-browser-build
+          cd test-browser-build
+          npm init -y
+          npm install vite typescript --save-dev
+          npm link ..
+
+      - name: Create test files
+        run: |
+          cat > test-browser-build/test-import.ts << 'EOF'
+          import { 
+            createAnonymizer,
+            InMemoryKeyProvider,
+            InMemoryPIIStorageProvider,
+            loadRuntime,
+            getStorageProvider,
+          } from 'rehydra';
+          console.log('Browser imports work!');
+          EOF
+
+          cat > test-browser-build/vite.config.ts << 'EOF'
+          import { defineConfig } from 'vite';
+          export default defineConfig({
+            build: {
+              lib: {
+                entry: './test-import.ts',
+                formats: ['es'],
+                fileName: 'test-bundle',
+              },
+              minify: false,
+            },
+            resolve: {
+              conditions: ['browser', 'import', 'module', 'default'],
+            },
+          });
+          EOF
+
+      - name: Run Vite build and check for Node.js warnings
+        run: |
+          cd test-browser-build
+          # Capture both stdout and stderr
+          OUTPUT=$(npx vite build 2>&1) || true
+          echo "$OUTPUT"
+
+          # Check for Node.js module warnings that indicate bundling issues
+          if echo "$OUTPUT" | grep -q "storage-node"; then
+            echo "❌ ERROR: storage-node.js is being bundled (should use storage.browser.js)"
+            exit 1
+          fi
+
+          if echo "$OUTPUT" | grep -q "onnxruntime-node"; then
+            echo "❌ ERROR: onnxruntime-node is being bundled (should use onnxruntime-web)"
+            exit 1
+          fi
+
+          if echo "$OUTPUT" | grep -q '"fs/promises"'; then
+            echo "❌ ERROR: fs/promises is being imported (Node.js module in browser build)"
+            exit 1
+          fi
+
+          if echo "$OUTPUT" | grep -q '"path".*externalized'; then
+            echo "❌ ERROR: path module is being imported (Node.js module in browser build)"
+            exit 1
+          fi
+
+          echo "✅ Browser bundle test passed - no Node.js modules detected"
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf test-browser-build

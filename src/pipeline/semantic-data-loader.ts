@@ -14,7 +14,7 @@
  * - Browser: IndexedDB
  */
 
-import { getStorageProvider, type StorageProvider } from "../utils/storage.js";
+import { getStorageProvider, type StorageProvider } from "#storage";
 import { join, basename } from "../utils/path.js";
 
 /**

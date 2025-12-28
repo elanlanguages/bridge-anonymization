@@ -4,7 +4,7 @@
  * Browser-compatible using storage abstraction layer
  */
 
-import { getStorageProvider, type StorageProvider } from "../utils/storage.js";
+import { getStorageProvider, type StorageProvider } from "#storage";
 import { join, basename } from "../utils/path.js";
 
 /**

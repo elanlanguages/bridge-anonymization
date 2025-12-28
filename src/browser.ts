@@ -122,7 +122,7 @@ export {
   resetStorageProvider,
   setStorageProvider,
   type StorageProvider,
-} from "./utils/storage.js";
+} from "#storage";
 
 // Re-export PII storage providers (browser-safe only - no SQLite)
 export {
