@@ -397,6 +397,42 @@ describe('Tagger', () => {
         expect(tags).toHaveLength(1);
         expect(tags[0]?.matchedText).toBe(mangledTag);
       });
+
+      it('should handle malformed id with /> inside quotes (ChatGPT garbling)', () => {
+        // ChatGPT sometimes moves the /> inside the id attribute value
+        const text = 'Hello <PII type="PERSON" gender="female" id="7/>"> world';
+        const tags = extractTags(text);
+
+        expect(tags).toHaveLength(1);
+        expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 7 });
+        expect(tags[0]?.semantic?.gender).toBe('female');
+      });
+
+      it('should handle malformed id with / inside quotes', () => {
+        const text = 'Hello <PII type="PERSON" id="1/"> world';
+        const tags = extractTags(text);
+
+        expect(tags).toHaveLength(1);
+        expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 1 });
+      });
+
+      it('should handle malformed id with HTML entity &gt; inside quotes', () => {
+        const text = 'Hello <PII type="PERSON" id="1/&gt;"> world';
+        const tags = extractTags(text);
+
+        expect(tags).toHaveLength(1);
+        expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 1 });
+      });
+
+      it('should handle mixed normal and malformed tags', () => {
+        // First tag malformed (echoed/quoted by ChatGPT), second tag correct
+        const text = '<PII type="PERSON" id="7/>"> and <PII type="PERSON" id="7"/>';
+        const tags = extractTags(text);
+
+        expect(tags).toHaveLength(2);
+        expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 7 });
+        expect(tags[1]).toMatchObject({ type: PIIType.PERSON, id: 7 });
+      });
     });
 
     describe('extractTagsStrict', () => {
@@ -587,6 +623,35 @@ describe('Tagger', () => {
         
         // Should replace PERSON_1 but leave PERSON_2
         expect(result).toBe('Hello John Doe and <PII type="PERSON" id="2"/>');
+      });
+
+      it('should rehydrate malformed tags with /> inside id quotes (ChatGPT garbling)', () => {
+        const piiMap: RawPIIMap = new Map([['PERSON_7', 'Sarah']]);
+        // ChatGPT sometimes moves the /> inside the id attribute value
+        const mangledText = 'Hello <PII type="PERSON" gender="female" id="7/>"> world';
+        
+        const result = rehydrate(mangledText, piiMap);
+        
+        expect(result).toBe('Hello Sarah world');
+      });
+
+      it('should rehydrate malformed tags with HTML entity inside id quotes', () => {
+        const piiMap: RawPIIMap = new Map([['PERSON_1', 'John']]);
+        const mangledText = 'Hello <PII type="PERSON" id="1/&gt;"> world';
+        
+        const result = rehydrate(mangledText, piiMap);
+        
+        expect(result).toBe('Hello John world');
+      });
+
+      it('should rehydrate both normal and malformed tags in same text', () => {
+        const piiMap: RawPIIMap = new Map([['PERSON_7', 'Sarah']]);
+        // First occurrence malformed (echoed by ChatGPT), second correct (in translation)
+        const mangledText = 'The quote "<PII type="PERSON" id="7/>">" translates to "<PII type="PERSON" id="7"/>"';
+        
+        const result = rehydrate(mangledText, piiMap);
+        
+        expect(result).toBe('The quote "Sarah" translates to "Sarah"');
       });
     });
   });
