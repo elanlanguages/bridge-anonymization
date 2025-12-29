@@ -1,7 +1,7 @@
 {
   "name": "rehydra",
-  "version": "0.1.5",
-  "description": "On-device PII anonymization module for high-privacy translation",
+  "version": "0.3.0",
+  "description": "On-device PII anonymization module for high-privacy AI workflows",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "browser": "./dist/browser.js",
@@ -77,16 +77,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rehydra-ai/rehydra.git"
+    "url": "git+https://github.com/rehydra-ai/rehydra-sdk.git"
   },
-  "dependencies": {},
   "optionalDependencies": {
     "onnxruntime-node": "^1.17.0"
   },
   "peerDependencies": {
+    "better-sqlite3": "^11.0.0",
     "onnxruntime-node": "^1.17.0",
-    "onnxruntime-web": "^1.17.0",
-    "better-sqlite3": "^11.0.0"
+    "onnxruntime-web": "^1.17.0"
   },
   "peerDependenciesMeta": {
     "onnxruntime-node": {
