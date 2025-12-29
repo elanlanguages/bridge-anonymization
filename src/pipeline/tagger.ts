@@ -348,14 +348,15 @@ function buildFuzzyTagPatterns(): RegExp[] {
   // Pattern for type attribute: type = "VALUE" (flexible spacing and quotes)
   const typeAttr = `type${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}([A-Z_]+)${QUOTE_CHARS}`;
   // Pattern for id attribute: id = "VALUE" (flexible spacing and quotes)
-  const idAttr = `id${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\d+)${QUOTE_CHARS}`;
+  // Also handles malformed cases where /> or /&gt; got placed inside the quotes (e.g., id="7/>")
+  const idAttr = `id${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\d+)(?:\\/?(?:>|&gt;)?)?${QUOTE_CHARS}`;
   // Optional gender attribute
   const genderAttr = `(?:${FLEXIBLE_WS}gender${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\w+)${QUOTE_CHARS})?`;
   // Optional scope attribute
   const scopeAttr = `(?:${FLEXIBLE_WS}scope${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\w+)${QUOTE_CHARS})?`;
 
-  // Self-closing tag endings: />, / >, >, etc.
-  const selfClosing = `${FLEXIBLE_WS}\\/?${FLEXIBLE_WS}>`;
+  // Self-closing tag endings: />, / >, >, or nothing if already closed inside quotes
+  const selfClosing = `${FLEXIBLE_WS}\\/?${FLEXIBLE_WS}>?`;
 
   return [
     // type first with optional gender/scope: <PII type="X" gender="Y" scope="Z" id="N"/>
