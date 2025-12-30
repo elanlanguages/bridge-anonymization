@@ -368,7 +368,8 @@ function buildFuzzyTagPatterns(): RegExp[] {
   const scopeAttr = `(?:${FLEXIBLE_WS}scope${FLEXIBLE_WS}=${FLEXIBLE_WS}${QUOTE_CHARS}(\\w+)${QUOTE_CHARS})?`;
 
   // Self-closing tag endings: />, / >, >, /&gt;, &gt;, or nothing if already closed inside quotes
-  const selfClosing = `${FLEXIBLE_WS}\\/?${FLEXIBLE_WS}${CLOSE_BRACKET}?`;
+  // Only consume whitespace if followed by / or closing bracket (prevents greedy matching of trailing space)
+  const selfClosing = `(?:${FLEXIBLE_WS}(?:\\/(?:${FLEXIBLE_WS}${CLOSE_BRACKET})?|${CLOSE_BRACKET}))?`;
 
   return [
     // type first with optional gender/scope: <PII type="X" gender="Y" scope="Z" id="N"/>

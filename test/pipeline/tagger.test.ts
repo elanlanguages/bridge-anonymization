@@ -547,6 +547,19 @@ describe("Tagger", () => {
         expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 1 });
       });
 
+      it("should handle fully HTML-encoded tag with malformed id (ChatGPT edge case)", () => {
+        // Combination: HTML-encoded opening AND closing inside id quotes
+        // This is: &lt;PII type="PERSON" gender="female" id="7/&gt;"
+        // Note: No closing bracket after the tag - the /&gt; is inside the id value
+        const text =
+          'Hello &lt;PII type="PERSON" gender="female" id="7/&gt;" world';
+        const tags = extractTags(text);
+
+        expect(tags).toHaveLength(1);
+        expect(tags[0]).toMatchObject({ type: PIIType.PERSON, id: 7 });
+        expect(tags[0]?.semantic?.gender).toBe("female");
+      });
+
       it("should handle HTML-encoded opening bracket only", () => {
         // Sometimes only the opening bracket is encoded
         const text = 'Hello &lt;PII type="PERSON" id="1"/> world';
@@ -874,6 +887,17 @@ describe("Tagger", () => {
         const result = rehydrate(mangledText, piiMap);
 
         expect(result).toBe("Call +49123456789 now");
+      });
+
+      it("should rehydrate fully HTML-encoded tag with malformed id (ChatGPT edge case)", () => {
+        const piiMap: RawPIIMap = new Map([["PERSON_7", "Sandra"]]);
+        // Combination: HTML-encoded opening AND /&gt; inside id quotes with no closing after
+        const mangledText =
+          'Nothing, just hanging with my mom and &lt;PII type="PERSON" gender="female" id="7/&gt;" is:';
+
+        const result = rehydrate(mangledText, piiMap);
+
+        expect(result).toBe("Nothing, just hanging with my mom and Sandra is:");
       });
     });
   });
