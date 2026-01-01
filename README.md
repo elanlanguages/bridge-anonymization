@@ -6,7 +6,11 @@
 
 On-device PII anonymization module for high-privacy AI workflows. Detects and replaces Personally Identifiable Information (PII) with placeholder tags while maintaining an encrypted mapping for later rehydration.
 
-**Works in Node.js, Bun, and browsers** - zero server-side dependencies required.
+```bash
+npm install rehydra
+```
+
+**Works in Node.js, Bun, and browsers**
 
 ## Features
 
