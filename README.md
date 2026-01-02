@@ -221,6 +221,60 @@ await anonymizer.initialize();
 | `'standard'` | Full model, best accuracy | ~1.1 GB | Yes |
 | `'custom'` | Your own ONNX model | Varies | No |
 
+### ONNX Session Options
+
+Fine-tune ONNX Runtime performance with session options:
+
+```typescript
+const anonymizer = createAnonymizer({
+  ner: {
+    mode: 'quantized',
+    sessionOptions: {
+      // Graph optimization level: 'disabled' | 'basic' | 'extended' | 'all'
+      graphOptimizationLevel: 'all',  // default
+      
+      // Threading (Node.js only)
+      intraOpNumThreads: 4,   // threads within operators
+      interOpNumThreads: 1,   // threads between operators
+      
+      // Memory optimization
+      enableCpuMemArena: true,
+      enableMemPattern: true,
+    }
+  }
+});
+```
+
+#### Execution Providers
+
+By default, Rehydra uses:
+- **Node.js**: CPU (fastest for quantized models)
+- **Browsers**: WebGPU with WASM fallback
+
+To enable **CoreML on macOS** (for non-quantized models):
+
+```typescript
+const anonymizer = createAnonymizer({
+  ner: {
+    mode: 'standard',  // CoreML works better with FP32 models
+    sessionOptions: {
+      executionProviders: ['coreml', 'cpu'],
+    }
+  }
+});
+```
+
+> **Note:** CoreML provides minimal speedup for quantized (INT8) models since they're already optimized for CPU. Use CoreML with the standard FP32 model for best results.
+
+Available execution providers:
+| Provider | Platform | Best For |
+|----------|----------|----------|
+| `'cpu'` | All | Quantized models (default) |
+| `'coreml'` | macOS | Standard (FP32) models on Apple Silicon |
+| `'cuda'` | Linux (NVIDIA) | GPU acceleration |
+| `'webgpu'` | Browsers | GPU acceleration in Chrome 113+ |
+| `'wasm'` | Browsers | Fallback for all browsers |
+
 ### Main Functions
 
 #### `createAnonymizer(config?)`
@@ -841,18 +895,45 @@ Usage is identical - the library auto-detects the runtime.
 
 ## Performance
 
-| Component | Time (2K chars) | Notes |
-|-----------|-----------------|-------|
-| Regex pass | ~5 ms | All regex recognizers |
-| NER inference | ~100-150 ms | Quantized model |
-| Semantic enrichment | ~1-2 ms | After data loaded |
-| Total pipeline | ~150-200 ms | Full anonymization |
+Benchmarks on Apple M3. Run `npm run benchmark` to measure on your hardware.
+
+### End-to-End Latency
+
+| Mode | Short (~50 chars) | Medium (~500 chars) | Long (~2K chars) |
+|------|-------------------|---------------------|------------------|
+| **Regex-only** | 0.04 ms | 0.07 ms | 0.15 ms |
+| **With NER** | 53 ms | 387 ms | 1,505 ms |
+
+### Pipeline Breakdown (2K chars)
+
+| Component | Time | Notes |
+|-----------|------|-------|
+| Regex recognizers | 0.07 ms | All 9 built-in patterns |
+| NER inference | ~1,500 ms | Quantized model, CPU |
+| Entity resolution | 0.002 ms | Merge & deduplicate |
+| Semantic enrichment | <0.001 ms | Pre-loaded data |
+| Tagging & encryption | 0.2 ms | AES-256-GCM |
+
+### Model Downloads
 
 | Model | Size | First-Use Download |
 |-------|------|-------------------|
-| Quantized | ~280 MB | ~30s on fast connection |
-| Standard | ~1.1 GB | ~2min on fast connection |
+| Quantized NER | ~265 MB | ~30s on fast connection |
+| Standard NER | ~1.1 GB | ~2min on fast connection |
 | Semantic Data | ~12 MB | ~5s on fast connection |
+
+### Scaling
+
+| Input Size | Regex-Only | With NER |
+|------------|------------|----------|
+| ~50 chars | 0.04 ms | 53 ms |
+| ~500 chars | 0.07 ms | 387 ms |
+| ~2K chars | 0.15 ms | 1,505 ms |
+| ~20K chars | 0.6 ms | ~15,000 ms* |
+
+*Estimated based on linear scaling
+
+> **Note:** NER inference time scales with input length due to transformer attention complexity. For latency-sensitive applications with long text, consider using regex-only mode or chunking the input.
 
 ## Requirements
 

@@ -12,6 +12,10 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/ner/**'],
     },
+    benchmark: {
+      include: ['test/benchmark/**/*.bench.ts'],
+      outputJson: './benchmarks/latest.json',
+    },
   },
 });
 
