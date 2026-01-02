@@ -13,5 +13,9 @@ export default defineConfig({
       exclude: ['src/ner/**'],
     },
   },
+  bench: {
+    include: ['test/benchmark/**/*.bench.ts'],
+    reporters: ['default'],
+  },
 });
 
