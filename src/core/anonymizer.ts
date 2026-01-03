@@ -26,7 +26,6 @@ import {
   createInferenceServerNERModel,
   DEFAULT_LABEL_MAP,
   type OrtSessionOptions,
-  type DeviceType,
 } from "../ner/index.js";
 
 import {
@@ -156,32 +155,12 @@ export interface NERConfig {
   sessionOptions?: OrtSessionOptions;
 
   /**
-   * Device for inference: 'cpu' (default), 'cuda', or 'tensorrt'
-   * GPU devices require Node.js and onnxruntime-node-gpu package
-   * @default 'cpu'
-   */
-  device?: DeviceType;
-
-  /**
-   * GPU device ID (default: 0)
-   * Only used when device is 'cuda' or 'tensorrt'
-   */
-  deviceId?: number;
-
-  /**
-   * Path to cache TensorRT engines (default: /tmp/rehydra_trt_cache)
-   * Only used when device is 'tensorrt'
-   * TensorRT engines are GPU-specific; cached engines speed up subsequent loads
-   */
-  tensorrtCachePath?: string;
-
-  /**
-   * Inference backend: 'onnx' (default) or 'inference-server'
-   * - 'onnx': Local ONNX Runtime inference (CPU or GPU)
+   * Inference backend: 'local' (default) or 'inference-server'
+   * - 'local': Local ONNX Runtime inference (CPU)
    * - 'inference-server': Remote GPU inference via HTTP (enterprise deployment)
-   * @default 'onnx'
+   * @default 'local'
    */
-  backend?: "onnx" | "inference-server";
+  backend?: "local" | "inference-server";
 
   /**
    * Inference server URL (required when backend is 'inference-server')
@@ -335,11 +314,7 @@ export class Anonymizer {
       this.nerModel = createInferenceServerNERModel({
         serverUrl: this.nerConfig.inferenceServerUrl,
         timeout: this.nerConfig.inferenceServerTimeout,
-        mode: this.nerConfig.mode,
-        vocabPath: this.nerConfig.vocabPath,
         modelVersion: this.modelVersion,
-        autoDownload: this.nerConfig.autoDownload ?? true,
-        onDownloadProgress: this.nerConfig.onDownloadProgress,
         onStatus: this.nerConfig.onStatus,
       });
     } else if (this.nerConfig.mode === "custom") {
@@ -358,9 +333,6 @@ export class Anonymizer {
         vocabPath: this.nerConfig.vocabPath,
         modelVersion: this.modelVersion,
         sessionOptions: this.nerConfig.sessionOptions,
-        device: this.nerConfig.device,
-        deviceId: this.nerConfig.deviceId,
-        tensorrtCachePath: this.nerConfig.tensorrtCachePath,
       });
     } else {
       // 'standard' or 'quantized' - use model manager with local ONNX
@@ -389,9 +361,6 @@ export class Anonymizer {
         labelMap,
         modelVersion: this.modelVersion,
         sessionOptions: this.nerConfig.sessionOptions,
-        device: this.nerConfig.device,
-        deviceId: this.nerConfig.deviceId,
-        tensorrtCachePath: this.nerConfig.tensorrtCachePath,
       });
     }
 
