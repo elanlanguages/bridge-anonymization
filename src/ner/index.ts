@@ -6,6 +6,8 @@
 export * from './tokenizer.js';
 export * from './bio-decoder.js';
 export * from './ner-model.js';
+export * from './triton-client.js';
+export * from './triton-ner-model.js';
 export {
   loadRuntime,
   detectRuntime,

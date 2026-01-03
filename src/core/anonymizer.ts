@@ -23,6 +23,7 @@ import {
   type INERModel,
   NERModelStub,
   createNERModel,
+  createTritonNERModel,
   DEFAULT_LABEL_MAP,
   type OrtSessionOptions,
   type DeviceType,
@@ -173,6 +174,38 @@ export interface NERConfig {
    * TensorRT engines are GPU-specific; cached engines speed up subsequent loads
    */
   tensorrtCachePath?: string;
+
+  /**
+   * Inference backend: 'onnx' (default) or 'triton'
+   * - 'onnx': Local ONNX Runtime inference
+   * - 'triton': Remote NVIDIA Triton Inference Server via gRPC
+   * @default 'onnx'
+   */
+  backend?: "onnx" | "triton";
+
+  /**
+   * Triton gRPC endpoint (required when backend is 'triton')
+   * @example 'localhost:8001'
+   */
+  tritonUrl?: string;
+
+  /**
+   * Triton model name (default: 'ner_model')
+   * Only used when backend is 'triton'
+   */
+  tritonModelName?: string;
+
+  /**
+   * Triton model version (default: latest)
+   * Only used when backend is 'triton'
+   */
+  tritonModelVersion?: string;
+
+  /**
+   * Triton connection timeout in milliseconds (default: 30000)
+   * Only used when backend is 'triton'
+   */
+  tritonTimeout?: number;
 }
 
 /**
@@ -289,10 +322,42 @@ export class Anonymizer {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Handle NER model setup based on mode
+    // Handle NER model setup based on mode and backend
     if (this.nerConfig.mode === "disabled") {
       this.nerModel = new NERModelStub();
+    } else if (this.nerConfig.backend === "triton") {
+      // Triton backend - use remote GPU inference
+      if (
+        this.nerConfig.tritonUrl === undefined ||
+        this.nerConfig.tritonUrl === ""
+      ) {
+        throw new Error(
+          "NER backend 'triton' requires tritonUrl to be set.\n\n" +
+            "Example:\n" +
+            "  createAnonymizer({\n" +
+            "    ner: {\n" +
+            "      mode: 'quantized',\n" +
+            "      backend: 'triton',\n" +
+            "      tritonUrl: 'localhost:8001',\n" +
+            "    }\n" +
+            "  })"
+        );
+      }
+
+      this.nerModel = createTritonNERModel({
+        tritonUrl: this.nerConfig.tritonUrl,
+        tritonModelName: this.nerConfig.tritonModelName,
+        tritonModelVersion: this.nerConfig.tritonModelVersion,
+        mode: this.nerConfig.mode,
+        vocabPath: this.nerConfig.vocabPath,
+        modelVersion: this.modelVersion,
+        autoDownload: this.nerConfig.autoDownload ?? true,
+        onDownloadProgress: this.nerConfig.onDownloadProgress,
+        onStatus: this.nerConfig.onStatus,
+        timeout: this.nerConfig.tritonTimeout,
+      });
     } else if (this.nerConfig.mode === "custom") {
+      // Custom ONNX model paths
       if (
         this.nerConfig.modelPath === undefined ||
         this.nerConfig.modelPath === "" ||
@@ -312,7 +377,7 @@ export class Anonymizer {
         tensorrtCachePath: this.nerConfig.tensorrtCachePath,
       });
     } else {
-      // 'standard' or 'quantized' - use model manager
+      // 'standard' or 'quantized' - use model manager with local ONNX
       const { modelPath, vocabPath, labelMapPath } = await ensureModel(
         this.nerConfig.mode,
         {
