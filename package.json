@@ -87,10 +87,14 @@
   "peerDependencies": {
     "better-sqlite3": "^11.0.0",
     "onnxruntime-node": "^1.17.0",
+    "onnxruntime-node-gpu": "^1.17.0",
     "onnxruntime-web": "^1.17.0"
   },
   "peerDependenciesMeta": {
     "onnxruntime-node": {
+      "optional": true
+    },
+    "onnxruntime-node-gpu": {
       "optional": true
     },
     "onnxruntime-web": {
