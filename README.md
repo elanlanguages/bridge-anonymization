@@ -183,11 +183,15 @@ const anonymizer = createAnonymizer({
   // NER configuration
   ner: {
     mode: 'quantized',              // 'standard' | 'quantized' | 'disabled' | 'custom'
+    backend: 'local',               // 'local' (default) | 'inference-server'
     autoDownload: true,             // Auto-download model if not present
     onStatus: (status) => {},       // Status messages callback
     onDownloadProgress: (progress) => {
       console.log(`${progress.file}: ${progress.percent}%`);
     },
+    
+    // For 'inference-server' backend:
+    inferenceServerUrl: 'http://localhost:8080',
     
     // For 'custom' mode only:
     modelPath: './my-model.onnx',
@@ -266,66 +270,54 @@ const anonymizer = createAnonymizer({
 
 > **Note:** CoreML provides minimal speedup for quantized (INT8) models since they're already optimized for CPU. Use CoreML with the standard FP32 model for best results.
 
-Available execution providers:
+Available execution providers (local inference):
 | Provider | Platform | Best For |
 |----------|----------|----------|
 | `'cpu'` | All | Quantized models (default) |
 | `'coreml'` | macOS | Standard (FP32) models on Apple Silicon |
-| `'cuda'` | Linux (NVIDIA) | GPU acceleration |
-| `'tensorrt'` | Linux (NVIDIA) | Maximum GPU performance |
 | `'webgpu'` | Browsers | GPU acceleration in Chrome 113+ |
 | `'wasm'` | Browsers | Fallback for all browsers |
 
-### GPU Acceleration (CUDA/TensorRT)
+> **Note:** For NVIDIA GPU acceleration with CUDA/TensorRT, use the inference server backend (see [GPU Acceleration](#gpu-acceleration-enterprise)).
 
-For high-throughput server deployments, enable GPU acceleration with NVIDIA GPUs:
+### GPU Acceleration (Enterprise)
 
-```bash
-# Install the GPU runtime (requires CUDA drivers)
-npm install onnxruntime-node-gpu
-```
+For high-throughput production deployments, Rehydra supports GPU-accelerated inference via a dedicated inference server. This provides **10-37× speedup** over CPU inference.
 
 ```typescript
 const anonymizer = createAnonymizer({
   ner: {
-    mode: 'quantized',
-    device: 'cuda',  // or 'tensorrt' for maximum performance
+    backend: 'inference-server',
+    inferenceServerUrl: 'http://localhost:8080',
   }
 });
+
+await anonymizer.initialize();
 ```
 
-**Device Options:**
+**Performance Comparison:**
 
-| Device | Description | First Run | Subsequent Runs |
-|--------|-------------|-----------|-----------------|
-| `'cpu'` | Standard CPU inference (default) | Instant | ~1500ms (2K chars) |
-| `'cuda'` | NVIDIA GPU via CUDA | Instant | ~100-150ms |
-| `'tensorrt'` | NVIDIA GPU via TensorRT | Slow (builds engine) | ~30-50ms |
+| Text Size | CPU (local) | GPU (server) | Speedup |
+|-----------|-------------|--------------|---------|
+| Short (~40 chars) | 196ms | 62ms | **3.2×** |
+| Medium (~500 chars) | 1,180ms | 73ms | **16×** |
+| Long (~2000 chars) | 4,270ms | 117ms | **37×** |
+| Entity-dense | 760ms | 68ms | **11×** |
 
-**TensorRT Notes:**
-- First inference is slow (1-5 minutes) while TensorRT builds an optimized engine
-- Engine is cached to disk (`tensorrtCachePath`) for fast subsequent loads
-- Engines are GPU-specific - must rebuild when switching GPU types
+**How it works:**
+- The inference server runs ONNX Runtime with TensorRT optimization on NVIDIA GPUs
+- Server handles tokenization, inference, and BIO decoding
+- SDK sends raw text, receives structured entities
+- Dynamic batching for high throughput under load
 
-```typescript
-// TensorRT with custom cache path
-const anonymizer = createAnonymizer({
-  ner: {
-    mode: 'quantized',
-    device: 'tensorrt',
-    deviceId: 0,  // GPU device ID (default: 0)
-    tensorrtCachePath: './cache/trt_engines',
-  }
-});
-```
+**Backend Options:**
 
-**Requirements:**
-- NVIDIA GPU (T4, A10, RTX series, etc.)
-- CUDA drivers 11.x or 12.x
-- `onnxruntime-node-gpu` package
-- Node.js (GPU mode is not supported in Bun)
+| Backend | Description | Latency (2K chars) |
+|---------|-------------|-------------------|
+| `'local'` | CPU inference (default) | ~4,300ms |
+| `'inference-server'` | GPU server (enterprise) | ~117ms |
 
-> **Note:** GPU mode requires Node.js. When `device` is `'cuda'` or `'tensorrt'`, using Bun will result in an error. For Bun deployments, use `device: 'cpu'` (default).
+> **Note:** The GPU inference server is available as part of Rehydra Enterprise. Contact us for deployment options including Docker containers and Kubernetes helm charts.
 
 ### Main Functions
 
@@ -947,24 +939,34 @@ Usage is identical - the library auto-detects the runtime.
 
 ## Performance
 
-Benchmarks on Apple M3. Run `npm run benchmark` to measure on your hardware.
+Benchmarks on Intel Xeon (CPU) and NVIDIA T4 (GPU). Run `npm run benchmark:compare` to measure on your hardware.
 
-### End-to-End Latency
+### Backend Comparison
 
-| Mode | Short (~50 chars) | Medium (~500 chars) | Long (~2K chars) |
-|------|-------------------|---------------------|------------------|
-| **Regex-only** | 0.04 ms | 0.07 ms | 0.15 ms |
-| **With NER** | 53 ms | 387 ms | 1,505 ms |
+| Backend | Short (~40 chars) | Medium (~500 chars) | Long (~2K chars) | Entity-dense |
+|---------|-------------------|---------------------|------------------|--------------|
+| **Regex-only** | 0.38 ms | 0.50 ms | 0.91 ms | 0.35 ms |
+| **NER CPU** | 196 ms | 1,180 ms | 4,270 ms | 760 ms |
+| **NER GPU** | 62 ms | 73 ms | 117 ms | 68 ms |
 
-### Pipeline Breakdown (2K chars)
+### GPU Speedup
 
-| Component | Time | Notes |
-|-----------|------|-------|
-| Regex recognizers | 0.07 ms | All 9 built-in patterns |
-| NER inference | ~1,500 ms | Quantized model, CPU |
-| Entity resolution | 0.002 ms | Merge & deduplicate |
-| Semantic enrichment | <0.001 ms | Pre-loaded data |
-| Tagging & encryption | 0.2 ms | AES-256-GCM |
+| Text Size | CPU | GPU | Speedup |
+|-----------|-----|-----|---------|
+| Short (~40 chars) | 196 ms | 62 ms | **3.2×** |
+| Medium (~500 chars) | 1,180 ms | 73 ms | **16×** |
+| Long (~2000 chars) | 4,270 ms | 117 ms | **37×** |
+| Entity-dense | 760 ms | 68 ms | **11×** |
+
+GPU acceleration provides massive speedups, especially for longer texts where the network overhead becomes negligible compared to inference time.
+
+### Throughput (ops/sec)
+
+| Backend | Short | Medium | Long |
+|---------|-------|--------|------|
+| **Regex-only** | ~2,640 | ~2,017 | ~1,096 |
+| **NER CPU** | ~5.1 | ~0.85 | ~0.23 |
+| **NER GPU** | ~16.2 | ~13.6 | ~8.5 |
 
 ### Model Downloads
 
@@ -974,18 +976,16 @@ Benchmarks on Apple M3. Run `npm run benchmark` to measure on your hardware.
 | Standard NER | ~1.1 GB | ~2min on fast connection |
 | Semantic Data | ~12 MB | ~5s on fast connection |
 
-### Scaling
+### Recommendations
 
-| Input Size | Regex-Only | With NER |
-|------------|------------|----------|
-| ~50 chars | 0.04 ms | 53 ms |
-| ~500 chars | 0.07 ms | 387 ms |
-| ~2K chars | 0.15 ms | 1,505 ms |
-| ~20K chars | 0.6 ms | ~15,000 ms* |
+| Use Case | Recommended Backend |
+|----------|---------------------|
+| Structured PII only (email, phone, IBAN) | Regex-only |
+| Development/testing with NER | NER CPU (local) |
+| Production with name/org/location detection | NER GPU (enterprise) |
+| High-throughput batch processing | NER GPU (enterprise) |
 
-*Estimated based on linear scaling
-
-> **Note:** NER inference time scales with input length due to transformer attention complexity. For latency-sensitive applications with long text, consider using regex-only mode or chunking the input.
+> **Note:** NER inference time scales with input length due to transformer attention complexity. For latency-sensitive applications with long text on CPU, consider using regex-only mode or chunking the input. GPU inference scales much better with text length.
 
 ## Requirements
 
