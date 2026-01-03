@@ -10,7 +10,11 @@ export {
   loadRuntime,
   detectRuntime,
   getRuntimeType,
+  getLoadedDevice,
+  buildGPUExecutionProviders,
   type OrtSessionOptions,
+  type DeviceType,
+  type GPUConfig,
 } from '#onnx-runtime';
 export {
   type NERModelMode,

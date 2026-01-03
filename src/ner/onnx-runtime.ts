@@ -1,14 +1,35 @@
 /**
  * ONNX Runtime Abstraction
- * Allows switching between onnxruntime-node and onnxruntime-web
+ * Allows switching between onnxruntime-node, onnxruntime-node-gpu, and onnxruntime-web
  * 
  * In browsers without a bundler, automatically loads onnxruntime-web from CDN
+ * GPU support (CUDA/TensorRT) requires Node.js and onnxruntime-node-gpu package
  */
 
 // CDN URL for onnxruntime-web (used when bare import fails in browser)
 // Using the bundled ESM version that includes WebAssembly backend
 const ONNX_WEB_CDN_URL =
   "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.bundle.min.mjs";
+
+/**
+ * Device type for inference
+ * - 'cpu': Standard CPU inference (works with Node.js and Bun)
+ * - 'cuda': NVIDIA GPU via CUDA (requires Node.js + onnxruntime-node-gpu)
+ * - 'tensorrt': NVIDIA GPU via TensorRT for maximum performance (requires Node.js + onnxruntime-node-gpu)
+ */
+export type DeviceType = "cpu" | "cuda" | "tensorrt";
+
+/**
+ * GPU-specific configuration options
+ */
+export interface GPUConfig {
+  /** Device type for inference */
+  device: DeviceType;
+  /** GPU device ID (default: 0) */
+  deviceId?: number;
+  /** Path to cache TensorRT engines (default: /tmp/rehydra_trt_cache) */
+  tensorrtCachePath?: string;
+}
 
 // Type definitions that match both runtimes
 export interface OrtTensor {
@@ -70,6 +91,7 @@ export interface OrtRuntime {
  */
 let _runtime: OrtRuntime | null = null;
 let _runtimeType: "node" | "web" | null = null;
+let _loadedDevice: DeviceType = "cpu";
 
 /**
  * Detects the best ONNX runtime for the current environment
@@ -136,49 +158,98 @@ async function loadOnnxWeb(): Promise<OrtRuntime> {
 }
 
 /**
+ * Loads the GPU ONNX runtime (onnxruntime-node-gpu)
+ * Only works in Node.js environment
+ */
+async function loadOnnxNodeGPU(): Promise<OrtRuntime> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - onnxruntime-node-gpu may not be installed
+    const ort = (await import("onnxruntime-node-gpu")) as OrtRuntime;
+    return ort;
+  } catch (e) {
+    throw new Error(
+      `GPU device requires 'onnxruntime-node-gpu' package.\n` +
+        `Install with: npm install onnxruntime-node-gpu\n` +
+        `Note: GPU mode requires Node.js (not Bun).\n` +
+        `Original error: ${String(e)}`
+    );
+  }
+}
+
+/**
  * Loads the appropriate ONNX runtime
+ * @param preferredRuntime - Force 'node' or 'web' runtime
+ * @param device - Device type: 'cpu', 'cuda', or 'tensorrt' (GPU requires Node.js)
  */
 export async function loadRuntime(
-  preferredRuntime?: "node" | "web"
+  preferredRuntime?: "node" | "web",
+  device: DeviceType = "cpu"
 ): Promise<OrtRuntime> {
-  if (_runtime !== null) {
+  // If runtime is already loaded, check if device matches
+  // GPU runtimes are different packages, so we need to reload if switching
+  if (_runtime !== null && _loadedDevice === device) {
     return _runtime;
+  }
+
+  // If switching devices, reset the runtime
+  if (_runtime !== null && _loadedDevice !== device) {
+    _runtime = null;
+    _runtimeType = null;
   }
 
   const runtimeType = preferredRuntime ?? detectRuntime();
 
   try {
     if (runtimeType === "node") {
-      // Dynamic import for onnxruntime-node
-      const ort = (await import("onnxruntime-node")) as OrtRuntime;
-      _runtime = ort;
-      _runtimeType = "node";
-    } else {
-      // Load onnxruntime-web (with CDN fallback for browsers)
-      const ort = await loadOnnxWeb();
-      _runtime = ort;
-      _runtimeType = "web";
-    }
-  } catch (e) {
-    // If preferred runtime fails, try the other
-    const fallbackType = runtimeType === "node" ? "web" : "node";
-
-    try {
-      if (fallbackType === "node") {
+      if (device === "cpu") {
+        // Load standard CPU runtime (works with Bun)
         const ort = (await import("onnxruntime-node")) as OrtRuntime;
         _runtime = ort;
         _runtimeType = "node";
+        _loadedDevice = "cpu";
       } else {
-        // Load onnxruntime-web (with CDN fallback for browsers)
-        const ort = await loadOnnxWeb();
+        // Load GPU runtime (Node.js only, requires onnxruntime-node-gpu)
+        const ort = await loadOnnxNodeGPU();
         _runtime = ort;
-        _runtimeType = "web";
+        _runtimeType = "node";
+        _loadedDevice = device;
       }
-    } catch {
-      throw new Error(
-        `Failed to load ONNX runtime. Install either 'onnxruntime-node' or 'onnxruntime-web'.\n` +
-          `Original error: ${String(e)}`
-      );
+    } else {
+      // Load onnxruntime-web (with CDN fallback for browsers)
+      // Note: GPU device setting is ignored in browser - uses WebGPU/WASM
+      const ort = await loadOnnxWeb();
+      _runtime = ort;
+      _runtimeType = "web";
+      _loadedDevice = "cpu"; // Browser doesn't use our GPU config
+    }
+  } catch (e) {
+    // If preferred runtime fails and we're on CPU, try the other
+    if (device === "cpu") {
+      const fallbackType = runtimeType === "node" ? "web" : "node";
+
+      try {
+        if (fallbackType === "node") {
+          const ort = (await import("onnxruntime-node")) as OrtRuntime;
+          _runtime = ort;
+          _runtimeType = "node";
+          _loadedDevice = "cpu";
+        } else {
+          // Load onnxruntime-web (with CDN fallback for browsers)
+          const ort = await loadOnnxWeb();
+          _runtime = ort;
+          _runtimeType = "web";
+          _loadedDevice = "cpu";
+        }
+      } catch {
+        throw new Error(
+          `Failed to load ONNX runtime. Install either 'onnxruntime-node' or 'onnxruntime-web'.\n` +
+            `Original error: ${String(e)}`
+        );
+      }
+    } else {
+      // GPU mode failed - don't fallback, throw the error
+      throw e;
     }
   }
 
@@ -193,11 +264,57 @@ export function getRuntimeType(): "node" | "web" | null {
 }
 
 /**
+ * Gets the currently loaded device type
+ */
+export function getLoadedDevice(): DeviceType {
+  return _loadedDevice;
+}
+
+/**
  * Resets the runtime (useful for testing)
  */
 export function resetRuntime(): void {
   _runtime = null;
   _runtimeType = null;
+  _loadedDevice = "cpu";
+}
+
+/** Execution provider configuration with required name */
+export type ExecutionProviderConfig = string | { name: string; [key: string]: unknown };
+
+/**
+ * Builds execution providers array based on device type
+ * @param device - The device type to configure
+ * @param deviceId - GPU device ID (default: 0)
+ * @param tensorrtCachePath - Path to cache TensorRT engines
+ * @returns Array of execution providers in priority order
+ */
+export function buildGPUExecutionProviders(
+  device: DeviceType,
+  deviceId: number = 0,
+  tensorrtCachePath?: string
+): ExecutionProviderConfig[] {
+  switch (device) {
+    case "tensorrt":
+      return [
+        {
+          name: "TensorrtExecutionProvider",
+          deviceId,
+          trtFp16Enable: true,
+          trtEngineCacheEnable: true,
+          trtEngineCachePath: tensorrtCachePath ?? "/tmp/rehydra_trt_cache",
+        },
+        { name: "CUDAExecutionProvider", deviceId },
+        "CPUExecutionProvider",
+      ];
+    case "cuda":
+      return [
+        { name: "CUDAExecutionProvider", deviceId },
+        "CPUExecutionProvider",
+      ];
+    default:
+      return ["CPUExecutionProvider"];
+  }
 }
 
 // Add runtime type declarations

@@ -7,8 +7,10 @@
 import {
   loadRuntime,
   getRuntimeType,
+  buildGPUExecutionProviders,
   type OrtRuntime,
   type OrtSessionOptions,
+  type DeviceType,
 } from "#onnx-runtime";
 import { SpanMatch, AnonymizationPolicy } from "../types/index.js";
 import {
@@ -42,6 +44,12 @@ export interface NERModelConfig {
   modelVersion: string;
   /** ONNX session options for performance tuning */
   sessionOptions?: OrtSessionOptions;
+  /** Device for inference: 'cpu' (default), 'cuda', or 'tensorrt' */
+  device?: DeviceType;
+  /** GPU device ID (default: 0) */
+  deviceId?: number;
+  /** Path to cache TensorRT engines (default: /tmp/rehydra_trt_cache) */
+  tensorrtCachePath?: string;
 }
 
 /**
@@ -72,12 +80,18 @@ export const DEFAULT_LABEL_MAP = [
 ];
 
 /**
- * Builds optimized ONNX session options based on runtime environment
+ * Builds optimized ONNX session options based on runtime environment and device
  * @param runtimeType - The detected ONNX runtime type ('node' or 'web')
+ * @param device - Device type for inference
+ * @param deviceId - GPU device ID
+ * @param tensorrtCachePath - Path to cache TensorRT engines
  * @param customOptions - User-provided options that override defaults
  */
 function buildSessionOptions(
   runtimeType: "node" | "web" | null,
+  device: DeviceType = "cpu",
+  deviceId: number = 0,
+  tensorrtCachePath?: string,
   customOptions?: OrtSessionOptions
 ): OrtSessionOptions {
   const defaults: OrtSessionOptions = {
@@ -88,13 +102,20 @@ function buildSessionOptions(
     interOpNumThreads: 1,
   };
 
-  // Add execution providers based on environment
-  // Note: For Node.js, CPU is fastest for quantized models
-  // Users can override with sessionOptions.executionProviders = ['coreml', 'cpu'] if needed
+  // Add execution providers based on environment and device
   if (runtimeType === "web") {
     // WebGPU (if available) with WASM fallback for browsers
+    // Note: Browser GPU config uses WebGPU, not CUDA/TensorRT
     defaults.executionProviders = ["webgpu", "wasm"];
+  } else if (runtimeType === "node" && device !== "cpu") {
+    // GPU execution providers for Node.js with CUDA or TensorRT
+    defaults.executionProviders = buildGPUExecutionProviders(
+      device,
+      deviceId,
+      tensorrtCachePath
+    );
   }
+  // For Node.js with CPU, no explicit execution providers needed (defaults to CPU)
 
   // Merge with custom options (custom options override defaults)
   return { ...defaults, ...customOptions };
@@ -120,13 +141,20 @@ export class NERModel {
   async load(): Promise<void> {
     if (this.isLoaded) return;
 
-    // Load ONNX runtime (auto-detects best runtime for environment)
-    this.ort = await loadRuntime();
+    // Get device configuration (default to CPU)
+    const device = this.config.device ?? "cpu";
 
-    // Build optimized session options based on runtime and user config
+    // Load ONNX runtime (auto-detects best runtime for environment)
+    // For GPU devices, this will load onnxruntime-node-gpu instead of onnxruntime-node
+    this.ort = await loadRuntime(undefined, device);
+
+    // Build optimized session options based on runtime, device, and user config
     const runtimeType = getRuntimeType();
     const sessionOptions = buildSessionOptions(
       runtimeType,
+      device,
+      this.config.deviceId ?? 0,
+      this.config.tensorrtCachePath,
       this.config.sessionOptions
     );
 
@@ -388,6 +416,9 @@ export function createNERModel(
     doLowerCase: config.doLowerCase ?? false, // XLM-RoBERTa is cased
     modelVersion: config.modelVersion ?? "1.0.0",
     sessionOptions: config.sessionOptions,
+    device: config.device,
+    deviceId: config.deviceId,
+    tensorrtCachePath: config.tensorrtCachePath,
   };
 
   return new NERModel(fullConfig);

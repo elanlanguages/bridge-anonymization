@@ -272,8 +272,60 @@ Available execution providers:
 | `'cpu'` | All | Quantized models (default) |
 | `'coreml'` | macOS | Standard (FP32) models on Apple Silicon |
 | `'cuda'` | Linux (NVIDIA) | GPU acceleration |
+| `'tensorrt'` | Linux (NVIDIA) | Maximum GPU performance |
 | `'webgpu'` | Browsers | GPU acceleration in Chrome 113+ |
 | `'wasm'` | Browsers | Fallback for all browsers |
+
+### GPU Acceleration (CUDA/TensorRT)
+
+For high-throughput server deployments, enable GPU acceleration with NVIDIA GPUs:
+
+```bash
+# Install the GPU runtime (requires CUDA drivers)
+npm install onnxruntime-node-gpu
+```
+
+```typescript
+const anonymizer = createAnonymizer({
+  ner: {
+    mode: 'quantized',
+    device: 'cuda',  // or 'tensorrt' for maximum performance
+  }
+});
+```
+
+**Device Options:**
+
+| Device | Description | First Run | Subsequent Runs |
+|--------|-------------|-----------|-----------------|
+| `'cpu'` | Standard CPU inference (default) | Instant | ~1500ms (2K chars) |
+| `'cuda'` | NVIDIA GPU via CUDA | Instant | ~100-150ms |
+| `'tensorrt'` | NVIDIA GPU via TensorRT | Slow (builds engine) | ~30-50ms |
+
+**TensorRT Notes:**
+- First inference is slow (1-5 minutes) while TensorRT builds an optimized engine
+- Engine is cached to disk (`tensorrtCachePath`) for fast subsequent loads
+- Engines are GPU-specific - must rebuild when switching GPU types
+
+```typescript
+// TensorRT with custom cache path
+const anonymizer = createAnonymizer({
+  ner: {
+    mode: 'quantized',
+    device: 'tensorrt',
+    deviceId: 0,  // GPU device ID (default: 0)
+    tensorrtCachePath: './cache/trt_engines',
+  }
+});
+```
+
+**Requirements:**
+- NVIDIA GPU (T4, A10, RTX series, etc.)
+- CUDA drivers 11.x or 12.x
+- `onnxruntime-node-gpu` package
+- Node.js (GPU mode is not supported in Bun)
+
+> **Note:** GPU mode requires Node.js. When `device` is `'cuda'` or `'tensorrt'`, using Bun will result in an error. For Bun deployments, use `device: 'cpu'` (default).
 
 ### Main Functions
 
