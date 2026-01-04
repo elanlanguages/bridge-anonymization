@@ -1,6 +1,6 @@
 {
   "name": "rehydra",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "On-device PII anonymization module for high-privacy AI workflows",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -60,6 +60,7 @@
     "test:coverage": "vitest run --coverage",
     "test:browser-bundle": "bash scripts/test-browser-bundle.sh",
     "benchmark": "vitest bench",
+    "benchmark:compare": "vitest bench --run test/benchmark/anonymizer-comparison.bench.ts",
     "benchmark:save": "mkdir -p benchmarks/history && vitest bench --run --outputJson=\"./benchmarks/history/$(date +%Y-%m-%d-%H%M%S).json\"",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",

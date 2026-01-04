@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 
+docker/sidecar/
+
 
 # Build output
 dist/
@@ -38,3 +40,4 @@ models/ner/
 # Benchmark results (remove these lines to track in git)
 benchmarks/
 
+rehydra-sidecar/

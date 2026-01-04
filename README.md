@@ -183,11 +183,15 @@ const anonymizer = createAnonymizer({
   // NER configuration
   ner: {
     mode: 'quantized',              // 'standard' | 'quantized' | 'disabled' | 'custom'
+    backend: 'local',               // 'local' (default) | 'inference-server'
     autoDownload: true,             // Auto-download model if not present
     onStatus: (status) => {},       // Status messages callback
     onDownloadProgress: (progress) => {
       console.log(`${progress.file}: ${progress.percent}%`);
     },
+    
+    // For 'inference-server' backend:
+    inferenceServerUrl: 'http://localhost:8080',
     
     // For 'custom' mode only:
     modelPath: './my-model.onnx',
@@ -266,14 +270,52 @@ const anonymizer = createAnonymizer({
 
 > **Note:** CoreML provides minimal speedup for quantized (INT8) models since they're already optimized for CPU. Use CoreML with the standard FP32 model for best results.
 
-Available execution providers:
+Available execution providers (local inference):
 | Provider | Platform | Best For |
 |----------|----------|----------|
 | `'cpu'` | All | Quantized models (default) |
 | `'coreml'` | macOS | Standard (FP32) models on Apple Silicon |
-| `'cuda'` | Linux (NVIDIA) | GPU acceleration |
 | `'webgpu'` | Browsers | GPU acceleration in Chrome 113+ |
 | `'wasm'` | Browsers | Fallback for all browsers |
+
+> **Note:** For NVIDIA GPU acceleration with CUDA/TensorRT, use the inference server backend (see [GPU Acceleration](#gpu-acceleration-enterprise)).
+
+### GPU Acceleration (Enterprise)
+
+For high-throughput production deployments, Rehydra supports GPU-accelerated inference via a dedicated inference server. This provides **10-37× speedup** over CPU inference.
+
+```typescript
+const anonymizer = createAnonymizer({
+  ner: {
+    backend: 'inference-server',
+    inferenceServerUrl: 'http://localhost:8080',
+  }
+});
+
+await anonymizer.initialize();
+```
+
+**Performance Comparison:**
+
+| Text Size | CPU (local) | GPU (server) | Winner |
+|-----------|-------------|--------------|--------|
+| Short (~40 chars) | 4.3ms | 62ms | **CPU 14× faster** |
+| Medium (~500 chars) | 26ms | 73ms | **CPU 2.8× faster** |
+| Long (~2000 chars) | 93ms | 117ms | **CPU 1.3× faster** |
+| Entity-dense | 13ms | 68ms | **CPU 5× faster** |
+
+Local CPU faster for most use cases due to network overhead. GPU is beneficial for batch processing and large documents.
+
+
+
+**Backend Options:**
+
+| Backend | Description | Latency (2K chars) |
+|---------|-------------|-------------------|
+| `'local'` | CPU inference (default) | ~4,300ms |
+| `'inference-server'` | GPU server (enterprise) | ~117ms |
+
+> **Note:** The GPU inference server is available as part of Rehydra Enterprise. Contact us for deployment options including Docker containers and Kubernetes helm charts.
 
 ### Main Functions
 
@@ -895,24 +937,25 @@ Usage is identical - the library auto-detects the runtime.
 
 ## Performance
 
-Benchmarks on Apple M3. Run `npm run benchmark` to measure on your hardware.
+Benchmarks on Apple M-series (CPU) and NVIDIA T4 (GPU). Run `npm run benchmark:compare` to measure on your hardware.
 
-### End-to-End Latency
+### Backend Comparison
 
-| Mode | Short (~50 chars) | Medium (~500 chars) | Long (~2K chars) |
-|------|-------------------|---------------------|------------------|
-| **Regex-only** | 0.04 ms | 0.07 ms | 0.15 ms |
-| **With NER** | 53 ms | 387 ms | 1,505 ms |
+| Backend | Short (~40 chars) | Medium (~500 chars) | Long (~2K chars) | Entity-dense |
+|---------|-------------------|---------------------|------------------|--------------|
+| **Regex-only** | 0.38 ms | 0.50 ms | 0.91 ms | 0.35 ms |
+| **NER CPU** | 4.3 ms | 26 ms | 93 ms | 13 ms |
+| **NER GPU** | 62 ms | 73 ms | 117 ms | 68 ms |
 
-### Pipeline Breakdown (2K chars)
+Local CPU inference is faster than GPU for typical workloads due to network overhead. GPU servers are beneficial for high-throughput batch processing where many requests can be parallelized.
 
-| Component | Time | Notes |
-|-----------|------|-------|
-| Regex recognizers | 0.07 ms | All 9 built-in patterns |
-| NER inference | ~1,500 ms | Quantized model, CPU |
-| Entity resolution | 0.002 ms | Merge & deduplicate |
-| Semantic enrichment | <0.001 ms | Pre-loaded data |
-| Tagging & encryption | 0.2 ms | AES-256-GCM |
+### Throughput (ops/sec)
+
+| Backend | Short | Medium | Long |
+|---------|-------|--------|------|
+| **Regex-only** | ~2,640 | ~2,017 | ~1,096 |
+| **NER CPU** | ~234 | ~38 | ~11 |
+| **NER GPU** | ~16 | ~14 | ~9 |
 
 ### Model Downloads
 
@@ -922,18 +965,16 @@ Benchmarks on Apple M3. Run `npm run benchmark` to measure on your hardware.
 | Standard NER | ~1.1 GB | ~2min on fast connection |
 | Semantic Data | ~12 MB | ~5s on fast connection |
 
-### Scaling
+### Recommendations
 
-| Input Size | Regex-Only | With NER |
-|------------|------------|----------|
-| ~50 chars | 0.04 ms | 53 ms |
-| ~500 chars | 0.07 ms | 387 ms |
-| ~2K chars | 0.15 ms | 1,505 ms |
-| ~20K chars | 0.6 ms | ~15,000 ms* |
+| Use Case | Recommended Backend |
+|----------|---------------------|
+| Structured PII only (email, phone, IBAN) | Regex-only |
+| General use with name/org/location detection | **NER CPU (default)** |
+| High-throughput batch processing (1000s of docs) | NER GPU |
+| Privacy-sensitive / zero-knowledge required | NER CPU (data never leaves device) |
 
-*Estimated based on linear scaling
-
-> **Note:** NER inference time scales with input length due to transformer attention complexity. For latency-sensitive applications with long text, consider using regex-only mode or chunking the input.
+> **Note:** Local CPU inference now outperforms GPU for most use cases due to network overhead elimination. The trie-based tokenizer provides O(token_length) lookups instead of O(vocab_size), making local inference practical for production use.
 
 ## Requirements
 
