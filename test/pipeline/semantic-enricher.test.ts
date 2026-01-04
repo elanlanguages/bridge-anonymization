@@ -114,7 +114,7 @@ describe("Semantic Enricher", () => {
         expect(classifyLocation("Berlin").scope).toBe("city");
         expect(classifyLocation("Paris").scope).toBe("city");
         expect(classifyLocation("London").scope).toBe("city");
-        expect(classifyLocation("Tokyo").scope).toBe("city");
+        expect(classifyLocation("New York").scope).toBe("city");
       });
 
       it("should return country code for cities", async () => {
