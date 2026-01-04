@@ -3,22 +3,30 @@
  * Compares: Regex-only, NER (CPU), NER (GPU)
  */
 
-import { describe, bench } from 'vitest';
-import { createAnonymizer, type Anonymizer } from '../../src/core/anonymizer.js';
-import { isModelDownloaded } from '../../src/ner/model-manager.js';
-import { InferenceServerClient } from '../../src/ner/inference-server-client.js';
+import { describe, bench } from "vitest";
+import {
+  createAnonymizer,
+  type Anonymizer,
+} from "../../src/core/anonymizer.js";
+import {
+  isModelDownloaded,
+  getModelPath,
+} from "../../src/ner/model-manager.js";
+import { InferenceServerClient } from "../../src/ner/inference-server-client.js";
+import { join } from "../../src/utils/path.js";
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
-const INFERENCE_SERVER_URL = process.env.INFERENCE_SERVER_URL || 'http://localhost:8080';
+const INFERENCE_SERVER_URL =
+  process.env.INFERENCE_SERVER_URL || "http://localhost:8080";
 
 // =============================================================================
 // Test Data
 // =============================================================================
 
-const SHORT_TEXT = 'Contact john@example.com for details.';
+const SHORT_TEXT = "Contact john@example.com for details.";
 
 const MEDIUM_TEXT = `
 Dear Mr. Smith,
@@ -111,7 +119,7 @@ let _gpuError: string | null = null;
 
 async function getRegexAnonymizer(): Promise<Anonymizer> {
   if (!_regexAnonymizer) {
-    _regexAnonymizer = createAnonymizer({ ner: { mode: 'disabled' } });
+    _regexAnonymizer = createAnonymizer({ ner: { mode: "disabled" } });
     await _regexAnonymizer.initialize();
   }
   return _regexAnonymizer;
@@ -122,14 +130,14 @@ async function getCPUAnonymizer(): Promise<Anonymizer | null> {
   if (_cpuError) return null;
 
   try {
-    const downloaded = await isModelDownloaded('quantized');
+    const downloaded = await isModelDownloaded("quantized");
     if (!downloaded) {
-      _cpuError = 'Model not downloaded. Run: npm run setup:ner';
+      _cpuError = "Model not downloaded. Run: npm run setup:ner";
       return null;
     }
 
     _cpuAnonymizer = createAnonymizer({
-      ner: { mode: 'quantized', autoDownload: false },
+      ner: { mode: "quantized", autoDownload: false },
     });
     await _cpuAnonymizer.initialize();
     return _cpuAnonymizer;
@@ -144,17 +152,20 @@ async function getGPUAnonymizer(): Promise<Anonymizer | null> {
   if (_gpuError) return null;
 
   try {
-    const client = new InferenceServerClient({ url: INFERENCE_SERVER_URL, timeout: 2000 });
+    const client = new InferenceServerClient({
+      url: INFERENCE_SERVER_URL,
+      timeout: 2000,
+    });
     const health = await client.health();
     if (!health.model_loaded) {
-      _gpuError = 'Inference server model not loaded';
+      _gpuError = "Inference server model not loaded";
       return null;
     }
 
     _gpuAnonymizer = createAnonymizer({
       ner: {
-        mode: 'quantized',
-        backend: 'inference-server',
+        mode: "quantized",
+        backend: "inference-server",
         inferenceServerUrl: INFERENCE_SERVER_URL,
       },
     });
@@ -170,77 +181,76 @@ async function getGPUAnonymizer(): Promise<Anonymizer | null> {
 // Benchmarks
 // =============================================================================
 
-describe('Regex Only', () => {
-  bench('short text (~40 chars)', async () => {
+describe("Regex Only", () => {
+  bench("short text (~40 chars)", async () => {
     const anon = await getRegexAnonymizer();
     await anon.anonymize(SHORT_TEXT);
   });
 
-  bench('medium text (~500 chars)', async () => {
+  bench("medium text (~500 chars)", async () => {
     const anon = await getRegexAnonymizer();
     await anon.anonymize(MEDIUM_TEXT);
   });
 
-  bench('long text (~2000 chars)', async () => {
+  bench("long text (~2000 chars)", async () => {
     const anon = await getRegexAnonymizer();
     await anon.anonymize(LONG_TEXT);
   });
 
-  bench('entity-dense text', async () => {
+  bench("entity-dense text", async () => {
     const anon = await getRegexAnonymizer();
     await anon.anonymize(ENTITY_DENSE_TEXT);
   });
 });
 
-describe('NER CPU (quantized)', () => {
-  bench('short text (~40 chars)', async () => {
+describe("NER CPU (quantized)", () => {
+  bench("short text (~40 chars)", async () => {
     const anon = await getCPUAnonymizer();
     if (!anon) throw new Error(_cpuError!);
     await anon.anonymize(SHORT_TEXT);
   });
 
-  bench('medium text (~500 chars)', async () => {
+  bench("medium text (~500 chars)", async () => {
     const anon = await getCPUAnonymizer();
     if (!anon) throw new Error(_cpuError!);
     await anon.anonymize(MEDIUM_TEXT);
   });
 
-  bench('long text (~2000 chars)', async () => {
+  bench("long text (~2000 chars)", async () => {
     const anon = await getCPUAnonymizer();
     if (!anon) throw new Error(_cpuError!);
     await anon.anonymize(LONG_TEXT);
   });
 
-  bench('entity-dense text', async () => {
+  bench("entity-dense text", async () => {
     const anon = await getCPUAnonymizer();
     if (!anon) throw new Error(_cpuError!);
     await anon.anonymize(ENTITY_DENSE_TEXT);
   });
 });
 
-describe('NER GPU (inference server)', () => {
-  bench('short text (~40 chars)', async () => {
+describe("NER GPU (inference server)", () => {
+  bench("short text (~40 chars)", async () => {
     const anon = await getGPUAnonymizer();
     if (!anon) throw new Error(_gpuError!);
     await anon.anonymize(SHORT_TEXT);
   });
 
-  bench('medium text (~500 chars)', async () => {
+  bench("medium text (~500 chars)", async () => {
     const anon = await getGPUAnonymizer();
     if (!anon) throw new Error(_gpuError!);
     await anon.anonymize(MEDIUM_TEXT);
   });
 
-  bench('long text (~2000 chars)', async () => {
+  bench("long text (~2000 chars)", async () => {
     const anon = await getGPUAnonymizer();
     if (!anon) throw new Error(_gpuError!);
     await anon.anonymize(LONG_TEXT);
   });
 
-  bench('entity-dense text', async () => {
+  bench("entity-dense text", async () => {
     const anon = await getGPUAnonymizer();
     if (!anon) throw new Error(_gpuError!);
     await anon.anonymize(ENTITY_DENSE_TEXT);
   });
 });
-

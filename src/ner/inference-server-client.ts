@@ -48,13 +48,13 @@ export interface HealthStatus {
 
 /**
  * Client for the Rehydra NER inference server.
- * 
+ *
  * @example
  * ```typescript
  * const client = new InferenceServerClient({ url: 'http://localhost:8080' });
- * 
+ *
  * await client.waitUntilReady();
- * 
+ *
  * const result = await client.predict('John Smith works at Acme Corp');
  * console.log(result.entities);
  * // [{ type: 'PERSON', text: 'John Smith', ... }, { type: 'ORG', text: 'Acme Corp', ... }]
@@ -65,13 +65,13 @@ export class InferenceServerClient {
   private readonly timeout: number;
 
   constructor(config: InferenceServerConfig) {
-    this.url = config.url.replace(/\/$/, '');
+    this.url = config.url.replace(/\/$/, "");
     this.timeout = config.timeout ?? 30000;
   }
 
   /**
    * Run NER prediction on text
-   * 
+   *
    * @param text - Text to analyze
    * @param confidenceThreshold - Minimum confidence (0-1, default: 0.5)
    */
@@ -84,8 +84,8 @@ export class InferenceServerClient {
 
     try {
       const response = await fetch(`${this.url}/v1/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
           confidence_threshold: confidenceThreshold,
@@ -98,13 +98,13 @@ export class InferenceServerClient {
         throw new Error(`Server error (${response.status}): ${errorText}`);
       }
 
-      const data = await response.json() as PredictResponse;
+      const data = (await response.json()) as PredictResponse;
       return {
         entities: data.entities,
         processingTimeMs: data.processing_time_ms,
       };
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof Error && error.name === "AbortError") {
         throw new Error(`Request timed out after ${this.timeout}ms`);
       }
       throw error;
@@ -122,7 +122,7 @@ export class InferenceServerClient {
 
     try {
       const response = await fetch(`${this.url}/health`, {
-        method: 'GET',
+        method: "GET",
         signal: controller.signal,
       });
 
@@ -130,10 +130,10 @@ export class InferenceServerClient {
         throw new Error(`Health check failed (${response.status})`);
       }
 
-      return await response.json() as HealthStatus;
+      return (await response.json()) as HealthStatus;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Health check timed out');
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Health check timed out");
       }
       throw error;
     } finally {
@@ -143,13 +143,16 @@ export class InferenceServerClient {
 
   /**
    * Wait for server to be ready
-   * 
+   *
    * @param maxWaitMs - Max wait time (default: 300000 = 5 min)
    * @param pollIntervalMs - Poll interval (default: 2000)
    */
-  async waitUntilReady(maxWaitMs = 300000, pollIntervalMs = 2000): Promise<HealthStatus> {
+  async waitUntilReady(
+    maxWaitMs = 300000,
+    pollIntervalMs = 2000
+  ): Promise<HealthStatus> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWaitMs) {
       try {
         const health = await this.health();
@@ -159,9 +162,9 @@ export class InferenceServerClient {
       } catch {
         // Not ready yet
       }
-      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
     }
-    
+
     throw new Error(`Server not ready within ${maxWaitMs}ms`);
   }
 }
@@ -169,6 +172,8 @@ export class InferenceServerClient {
 /**
  * Create client instance
  */
-export function createInferenceServerClient(config: InferenceServerConfig): InferenceServerClient {
+export function createInferenceServerClient(
+  config: InferenceServerConfig
+): InferenceServerClient {
   return new InferenceServerClient(config);
 }

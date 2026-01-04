@@ -77,13 +77,30 @@ export const DEFAULT_TOKENIZER_CONFIG: TokenizerConfig = {
 };
 
 /**
+ * Trie node for fast prefix matching
+ */
+interface TrieNode {
+  children: Map<string, TrieNode>;
+  tokenId: number | null;
+  token: string | null;
+}
+
+/**
+ * Creates a new trie node
+ */
+function createTrieNode(): TrieNode {
+  return { children: new Map(), tokenId: null, token: null };
+}
+
+/**
  * WordPiece Tokenizer - supports both HuggingFace JSON and vocab.txt formats
+ * Uses a Trie for O(token_length) lookups instead of O(vocab_size)
  */
 export class WordPieceTokenizer {
   private vocab: Map<string, number>;
   private inverseVocab: Map<number, string>;
   private config: TokenizerConfig;
-  private sortedVocab: Array<[string, number]>;
+  private trie: TrieNode;
 
   // Special token IDs (XLM-RoBERTa style)
   private clsId: number = 0;  // <s>
@@ -107,11 +124,31 @@ export class WordPieceTokenizer {
       this.inverseVocab.set(id, token);
     }
 
-    // Sort vocab by token length (longest first) for greedy matching
-    this.sortedVocab = Array.from(vocab.entries()).sort((a, b) => b[0].length - a[0].length);
+    // Build trie for fast prefix matching
+    this.trie = createTrieNode();
+    for (const [token, id] of vocab) {
+      // Skip special tokens in trie (we handle them explicitly)
+      if (token.startsWith('<') || token.startsWith('[')) continue;
+      this.insertIntoTrie(token, id);
+    }
 
     // Try to detect special tokens from vocab
     this.detectSpecialTokens();
+  }
+
+  /**
+   * Insert a token into the trie
+   */
+  private insertIntoTrie(token: string, id: number): void {
+    let node = this.trie;
+    for (const char of token) {
+      if (!node.children.has(char)) {
+        node.children.set(char, createTrieNode());
+      }
+      node = node.children.get(char)!;
+    }
+    node.tokenId = id;
+    node.token = token;
   }
 
   /**
@@ -232,48 +269,73 @@ export class WordPieceTokenizer {
   }
 
   /**
-   * Find the best matching token using greedy longest-match
+   * Find the best matching token using trie-based greedy longest-match
+   * O(max_token_length) instead of O(vocab_size)
    */
   private findBestToken(text: string, startPos: number): { token: string; id: number; length: number } {
-    const remaining = text.slice(startPos);
-    
     // Check if this starts a new word (preceded by space or start)
     const isWordStart = startPos === 0 || /\s/.test(text[startPos - 1]!);
     
     // For SentencePiece models, word-initial tokens start with ▁
+    // Try matching with ▁ prefix first for word starts
     if (isWordStart) {
-      // Try with ▁ prefix first
-      const withPrefix = '▁' + remaining;
-      for (const [vocabToken, id] of this.sortedVocab) {
-        if (withPrefix.startsWith(vocabToken)) {
-          // Return the match length without the ▁ since that's not in original text
-          return { 
-            token: vocabToken, 
-            id, 
-            length: vocabToken.length - 1 // Subtract 1 for the ▁
-          };
-        }
+      const result = this.findLongestTrieMatch('▁', text, startPos);
+      if (result) {
+        return result;
       }
     }
     
-    // Try exact match without prefix
-    for (const [vocabToken, id] of this.sortedVocab) {
-      // Skip special tokens and tokens starting with ▁ for non-word-start positions
-      if (vocabToken.startsWith('<') || vocabToken.startsWith('[')) continue;
-      if (!isWordStart && vocabToken.startsWith('▁')) continue;
-      
-      if (remaining.startsWith(vocabToken.replace(/^▁/, ''))) {
-        const matchLength = vocabToken.replace(/^▁/, '').length;
-        if (matchLength > 0) {
-          return { token: vocabToken, id, length: matchLength };
-        }
-      }
+    // Try matching without prefix
+    const result = this.findLongestTrieMatch('', text, startPos);
+    if (result) {
+      return result;
     }
     
     // Single character fallback
-    const char = remaining[0]!;
+    const char = text[startPos]!;
     const charId = this.vocab.get(char) ?? this.vocab.get('▁' + char) ?? this.unkId;
     return { token: char, id: charId, length: 1 };
+  }
+
+  /**
+   * Find the longest matching token in the trie
+   */
+  private findLongestTrieMatch(
+    prefix: string, 
+    text: string, 
+    startPos: number
+  ): { token: string; id: number; length: number } | null {
+    let node = this.trie;
+    let bestMatch: { token: string; id: number; length: number } | null = null;
+    
+    // First, traverse the prefix (e.g., '▁')
+    for (const char of prefix) {
+      const child = node.children.get(char);
+      if (!child) return null;
+      node = child;
+    }
+    
+    // Now traverse the actual text
+    let matchLength = 0;
+    for (let i = startPos; i < text.length; i++) {
+      const char = text[i]!;
+      const child = node.children.get(char);
+      if (!child) break;
+      
+      node = child;
+      matchLength++;
+      
+      // If this node represents a complete token, record it as best match so far
+      if (node.tokenId !== null && node.token !== null) {
+        bestMatch = {
+          token: node.token,
+          id: node.tokenId,
+          length: matchLength, // Length in original text (without prefix)
+        };
+      }
+    }
+    
+    return bestMatch;
   }
 
   /**

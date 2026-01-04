@@ -36,7 +36,11 @@ import {
 
 import { prenormalize } from "../pipeline/prenormalize.js";
 import { resolveEntities } from "../pipeline/resolver.js";
-import { tagEntities, countEntitiesByType, type RawPIIMap } from "../pipeline/tagger.js";
+import {
+  tagEntities,
+  countEntitiesByType,
+  type RawPIIMap,
+} from "../pipeline/tagger.js";
 import { validateOutput } from "../pipeline/validator.js";
 import { enrichSemantics } from "../pipeline/semantic-enricher.js";
 import {
@@ -646,7 +650,10 @@ export class Anonymizer {
  * });
  * ```
  */
-export function createAnonymizer(config?: AnonymizerConfig, sessionFactory?: SessionFactory): Anonymizer {
+export function createAnonymizer(
+  config?: AnonymizerConfig,
+  sessionFactory?: SessionFactory
+): Anonymizer {
   return new Anonymizer(config, sessionFactory);
 }
 
@@ -720,4 +727,3 @@ export async function anonymizeWithNER(
     await anonymizer.dispose();
   }
 }
-

@@ -40,3 +40,4 @@ models/ner/
 # Benchmark results (remove these lines to track in git)
 benchmarks/
 
+rehydra-sidecar/

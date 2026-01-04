@@ -297,18 +297,16 @@ await anonymizer.initialize();
 
 **Performance Comparison:**
 
-| Text Size | CPU (local) | GPU (server) | Speedup |
-|-----------|-------------|--------------|---------|
-| Short (~40 chars) | 196ms | 62ms | **3.2×** |
-| Medium (~500 chars) | 1,180ms | 73ms | **16×** |
-| Long (~2000 chars) | 4,270ms | 117ms | **37×** |
-| Entity-dense | 760ms | 68ms | **11×** |
+| Text Size | CPU (local) | GPU (server) | Winner |
+|-----------|-------------|--------------|--------|
+| Short (~40 chars) | 4.3ms | 62ms | **CPU 14× faster** |
+| Medium (~500 chars) | 26ms | 73ms | **CPU 2.8× faster** |
+| Long (~2000 chars) | 93ms | 117ms | **CPU 1.3× faster** |
+| Entity-dense | 13ms | 68ms | **CPU 5× faster** |
 
-**How it works:**
-- The inference server runs ONNX Runtime with TensorRT optimization on NVIDIA GPUs
-- Server handles tokenization, inference, and BIO decoding
-- SDK sends raw text, receives structured entities
-- Dynamic batching for high throughput under load
+Local CPU faster for most use cases due to network overhead. GPU is beneficial for batch processing and large documents.
+
+
 
 **Backend Options:**
 
@@ -939,34 +937,25 @@ Usage is identical - the library auto-detects the runtime.
 
 ## Performance
 
-Benchmarks on Intel Xeon (CPU) and NVIDIA T4 (GPU). Run `npm run benchmark:compare` to measure on your hardware.
+Benchmarks on Apple M-series (CPU) and NVIDIA T4 (GPU). Run `npm run benchmark:compare` to measure on your hardware.
 
 ### Backend Comparison
 
 | Backend | Short (~40 chars) | Medium (~500 chars) | Long (~2K chars) | Entity-dense |
 |---------|-------------------|---------------------|------------------|--------------|
 | **Regex-only** | 0.38 ms | 0.50 ms | 0.91 ms | 0.35 ms |
-| **NER CPU** | 196 ms | 1,180 ms | 4,270 ms | 760 ms |
+| **NER CPU** | 4.3 ms | 26 ms | 93 ms | 13 ms |
 | **NER GPU** | 62 ms | 73 ms | 117 ms | 68 ms |
 
-### GPU Speedup
-
-| Text Size | CPU | GPU | Speedup |
-|-----------|-----|-----|---------|
-| Short (~40 chars) | 196 ms | 62 ms | **3.2×** |
-| Medium (~500 chars) | 1,180 ms | 73 ms | **16×** |
-| Long (~2000 chars) | 4,270 ms | 117 ms | **37×** |
-| Entity-dense | 760 ms | 68 ms | **11×** |
-
-GPU acceleration provides massive speedups, especially for longer texts where the network overhead becomes negligible compared to inference time.
+Local CPU inference is faster than GPU for typical workloads due to network overhead. GPU servers are beneficial for high-throughput batch processing where many requests can be parallelized.
 
 ### Throughput (ops/sec)
 
 | Backend | Short | Medium | Long |
 |---------|-------|--------|------|
 | **Regex-only** | ~2,640 | ~2,017 | ~1,096 |
-| **NER CPU** | ~5.1 | ~0.85 | ~0.23 |
-| **NER GPU** | ~16.2 | ~13.6 | ~8.5 |
+| **NER CPU** | ~234 | ~38 | ~11 |
+| **NER GPU** | ~16 | ~14 | ~9 |
 
 ### Model Downloads
 
@@ -981,11 +970,11 @@ GPU acceleration provides massive speedups, especially for longer texts where th
 | Use Case | Recommended Backend |
 |----------|---------------------|
 | Structured PII only (email, phone, IBAN) | Regex-only |
-| Development/testing with NER | NER CPU (local) |
-| Production with name/org/location detection | NER GPU (enterprise) |
-| High-throughput batch processing | NER GPU (enterprise) |
+| General use with name/org/location detection | **NER CPU (default)** |
+| High-throughput batch processing (1000s of docs) | NER GPU |
+| Privacy-sensitive / zero-knowledge required | NER CPU (data never leaves device) |
 
-> **Note:** NER inference time scales with input length due to transformer attention complexity. For latency-sensitive applications with long text on CPU, consider using regex-only mode or chunking the input. GPU inference scales much better with text length.
+> **Note:** Local CPU inference now outperforms GPU for most use cases due to network overhead elimination. The trie-based tokenizer provides O(token_length) lookups instead of O(vocab_size), making local inference practical for production use.
 
 ## Requirements
 
