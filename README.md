@@ -1,10 +1,13 @@
 # Rehydra
 
+![Rehydra Logo](https://framerusercontent.com/images/NT4xWP34VHd2Wlrk197je5BUi4.png?scale-down-to=512&width=6516&height=1752)
+
 ![License](https://img.shields.io/github/license/rehydra-ai/rehydra)
 ![Issues](https://img.shields.io/github/issues/rehydra-ai/rehydra)
 [![codecov](https://codecov.io/github/rehydra-ai/rehydra/graph/badge.svg?token=WX5RI0ZZJG)](https://codecov.io/github/rehydra-ai/rehydra)
 
-On-device PII anonymization module for high-privacy AI workflows. Detects and replaces Personally Identifiable Information (PII) with placeholder tags while maintaining an encrypted mapping for later rehydration.
+
+On-device PII anonymization module for high-privacy AI workflows. Detects and replaces Personally Identifiable Information (PII) with semantically valuable placeholder tags while maintaining an encrypted mapping for rehydration.
 
 ```bash
 npm install rehydra
@@ -16,7 +19,7 @@ npm install rehydra
 
 - **Structured PII Detection**: Regex-based detection for emails, phones, IBANs, credit cards, IPs, URLs
 - **Soft PII Detection**: ONNX-powered NER model for names, organizations, locations (auto-downloads on first use if enabled)
-- **Semantic Enrichment**: AI/MT-friendly tags with gender/location attributes for better translations
+- **Semantic Enrichment**: AI/MT-friendly tags with gender/location attributes
 - **Secure PII Mapping**: AES-256-GCM encrypted storage of original PII values
 - **Cross-Platform**: Works identically in Node.js, Bun, and browsers
 - **Configurable Policies**: Customizable detection rules, thresholds, and allowlists
@@ -24,19 +27,18 @@ npm install rehydra
 
 ## Installation
 
-### Node.js / Bun
+### Node.js
 
 ```bash
 npm install rehydra
 ```
+For bun support see [Bun Support](#bun-support)
 
 ### Browser (with bundler)
 
 ```bash
 npm install rehydra onnxruntime-web
 ```
-
-When using Vite, webpack, or other bundlers, the browser-safe entry point is automatically selected via [conditional exports](https://nodejs.org/api/packages.html#conditional-exports). This entry point excludes Node.js-specific modules like SQLite storage.
 
 ### Browser (without bundler)
 
@@ -50,6 +52,53 @@ When using Vite, webpack, or other bundlers, the browser-safe entry point is aut
 ```
 
 ## Quick Start
+
+### Full pipeline (Anonymize → LLM → Rehydrate)
+
+The full workflow for privacy-preserving LLM workflows:
+
+```typescript
+import { 
+  createAnonymizer, 
+  decryptPIIMap, 
+  rehydrate,
+  InMemoryKeyProvider 
+} from 'rehydra';
+
+// 1. Create a key provider (required to decrypt later)
+const keyProvider = new InMemoryKeyProvider();
+
+// 2. Create anonymizer with key provider
+const anonymizer = createAnonymizer({
+  ner: { mode: 'quantized' },
+  semantic: { enabled: true },
+  keyProvider: keyProvider
+});
+
+await anonymizer.initialize();
+
+// 3. Anonymize before translation
+const original = 'Hello John Smith from Acme Corp in Berlin!';
+const result = await anonymizer.anonymize(original);
+
+console.log(result.anonymizedText);
+// "Hello <PII type="PERSON" gender="male" id="1"/> from <PII type="ORG" id="2"/> in <PII type="LOCATION" scope="city" id="3"/>!"
+
+// 4. Translate (or do other AI workloads that preserve placeholders)
+const translated = await yourAIWorkflow(result.anonymizedText, { from: 'en', to: 'de' });
+// "Hallo <PII type="PERSON" gender="male" id="1"/> von <PII type="ORG" id="2"/> in <PII type="LOCATION" scope="city" id="3"/>!"
+
+// 5. Decrypt the PII map using the same key
+const encryptionKey = await keyProvider.getKey();
+const piiMap = await decryptPIIMap(result.piiMap, encryptionKey);
+
+// 6. Rehydrate - replace placeholders with original values
+const rehydrated = rehydrate(translated, piiMap);
+// "Hallo John Smith von Acme Corp in Berlin!"
+
+// 7. Clean up
+await anonymizer.dispose();
+```
 
 ### Regex-Only Mode (No Downloads Required)
 
@@ -118,61 +167,9 @@ console.log(result.anonymizedText);
 // "Hello <PII type="PERSON" gender="female" id="1"/> from <PII type="LOCATION" scope="city" id="2"/>!"
 ```
 
-## Example: Translation Workflow (Anonymize → Translate → Rehydrate)
-
-The full workflow for privacy-preserving translation:
-
-```typescript
-import { 
-  createAnonymizer, 
-  decryptPIIMap, 
-  rehydrate,
-  InMemoryKeyProvider 
-} from 'rehydra';
-
-// 1. Create a key provider (required to decrypt later)
-const keyProvider = new InMemoryKeyProvider();
-
-// 2. Create anonymizer with key provider
-const anonymizer = createAnonymizer({
-  ner: { mode: 'quantized' },
-  keyProvider: keyProvider
-});
-
-await anonymizer.initialize();
-
-// 3. Anonymize before translation
-const original = 'Hello John Smith from Acme Corp in Berlin!';
-const result = await anonymizer.anonymize(original);
-
-console.log(result.anonymizedText);
-// "Hello <PII type="PERSON" id="1"/> from <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
-
-// 4. Translate (or do other AI workloads that preserve placeholders)
-const translated = await yourAIWorkflow(result.anonymizedText, { from: 'en', to: 'de' });
-// "Hallo <PII type="PERSON" id="1"/> von <PII type="ORG" id="2"/> in <PII type="LOCATION" id="3"/>!"
-
-// 5. Decrypt the PII map using the same key
-const encryptionKey = await keyProvider.getKey();
-const piiMap = await decryptPIIMap(result.piiMap, encryptionKey);
-
-// 6. Rehydrate - replace placeholders with original values
-const rehydrated = rehydrate(translated, piiMap);
-
-console.log(rehydrated);
-// "Hallo John Smith von Acme Corp in Berlin!"
-
-// 7. Clean up
-await anonymizer.dispose();
-```
-
-### Key Points
-
-- **Save the encryption key** - You need the same key to decrypt the PII map
-- **Placeholders are XML-like** - Most translation services preserve them automatically
-- **PII stays local** - Original values never leave your system during translation
-
 ## API Reference
+
+Full documentation on [https://docs.rehydra.ai](https://docs.rehydra.ai).
 
 ### Configuration Options
 
@@ -253,36 +250,14 @@ const anonymizer = createAnonymizer({
 
 By default, Rehydra uses:
 - **Node.js**: CPU (fastest for quantized models)
-- **Browsers**: WebGPU with WASM fallback
+- **Browsers**: CPU (WASM)
 
-To enable **CoreML on macOS** (for non-quantized models):
 
-```typescript
-const anonymizer = createAnonymizer({
-  ner: {
-    mode: 'standard',  // CoreML works better with FP32 models
-    sessionOptions: {
-      executionProviders: ['coreml', 'cpu'],
-    }
-  }
-});
-```
-
-> **Note:** CoreML provides minimal speedup for quantized (INT8) models since they're already optimized for CPU. Use CoreML with the standard FP32 model for best results.
-
-Available execution providers (local inference):
-| Provider | Platform | Best For |
-|----------|----------|----------|
-| `'cpu'` | All | Quantized models (default) |
-| `'coreml'` | macOS | Standard (FP32) models on Apple Silicon |
-| `'webgpu'` | Browsers | GPU acceleration in Chrome 113+ |
-| `'wasm'` | Browsers | Fallback for all browsers |
-
-> **Note:** For NVIDIA GPU acceleration with CUDA/TensorRT, use the inference server backend (see [GPU Acceleration](#gpu-acceleration-enterprise)).
+> For NVIDIA GPU acceleration with CUDA/TensorRT, use the inference server backend (see [GPU Acceleration](#gpu-acceleration-enterprise)).
 
 ### GPU Acceleration (Enterprise)
 
-For high-throughput production deployments, Rehydra supports GPU-accelerated inference via a dedicated inference server. This provides **10-37× speedup** over CPU inference.
+For high-throughput production deployments, Rehydra supports GPU-accelerated inference via a dedicated inference server. This is useful for large documents.
 
 ```typescript
 const anonymizer = createAnonymizer({
@@ -297,16 +272,14 @@ await anonymizer.initialize();
 
 **Performance Comparison:**
 
-| Text Size | CPU (local) | GPU (server) | Winner |
-|-----------|-------------|--------------|--------|
-| Short (~40 chars) | 4.3ms | 62ms | **CPU 14× faster** |
-| Medium (~500 chars) | 26ms | 73ms | **CPU 2.8× faster** |
-| Long (~2000 chars) | 93ms | 117ms | **CPU 1.3× faster** |
-| Entity-dense | 13ms | 68ms | **CPU 5× faster** |
+| Text Size | CPU (local) | GPU (server) |
+|-----------|-------------|--------------|
+| Short (~40 chars) | 4.3ms | 62ms |
+| Medium (~500 chars) | 26ms | 73ms |
+| Long (~2000 chars) | 93ms | 117ms |
+| Entity-dense | 13ms | 68ms |
 
 Local CPU faster for most use cases due to network overhead. GPU is beneficial for batch processing and large documents.
-
-
 
 **Backend Options:**
 
@@ -315,7 +288,6 @@ Local CPU faster for most use cases due to network overhead. GPU is beneficial f
 | `'local'` | CPU inference (default) | ~4,300ms |
 | `'inference-server'` | GPU server (enterprise) | ~117ms |
 
-> **Note:** The GPU inference server is available as part of Rehydra Enterprise. Contact us for deployment options including Docker containers and Kubernetes helm charts.
 
 ### Main Functions
 
@@ -815,63 +787,6 @@ const sessionIds = await storage.list();
 
 The library works seamlessly in browsers without any special configuration.
 
-### Basic Browser Example
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>PII Anonymization</title>
-</head>
-<body>
-  <script type="module">
-    import { 
-      createAnonymizer, 
-      InMemoryKeyProvider,
-      decryptPIIMap,
-      rehydrate
-    } from './node_modules/rehydra/dist/index.js';
-    
-    async function demo() {
-      // Create anonymizer
-      const keyProvider = new InMemoryKeyProvider();
-      const anonymizer = createAnonymizer({
-        ner: { 
-          mode: 'quantized',
-          onStatus: (s) => console.log('NER:', s),
-          onDownloadProgress: (p) => console.log(`Download: ${p.percent}%`)
-        },
-        semantic: { enabled: true },
-        keyProvider
-      });
-      
-      // Initialize (downloads models on first use)
-      await anonymizer.initialize();
-      
-      // Anonymize
-      const result = await anonymizer.anonymize(
-        'Contact Maria Schmidt at maria@example.com in Berlin.'
-      );
-      
-      console.log('Anonymized:', result.anonymizedText);
-      // "Contact <PII type="PERSON" gender="female" id="1"/> at <PII type="EMAIL" id="2"/> in <PII type="LOCATION" scope="city" id="3"/>."
-      
-      // Rehydrate
-      const key = await keyProvider.getKey();
-      const piiMap = await decryptPIIMap(result.piiMap, key);
-      const original = rehydrate(result.anonymizedText, piiMap);
-      
-      console.log('Rehydrated:', original);
-      
-      await anonymizer.dispose();
-    }
-    
-    demo().catch(console.error);
-  </script>
-</body>
-</html>
-```
-
 ### Browser Notes
 
 - **First-use downloads**: NER model (~280 MB) and semantic data (~12 MB) are downloaded on first use
@@ -899,31 +814,6 @@ The package uses [conditional exports](https://nodejs.org/api/packages.html#cond
   }
 }
 ```
-
-**Explicit imports** (if needed):
-
-```typescript
-// Browser-only build (excludes SQLite, Node.js fs, etc.)
-import { createAnonymizer } from 'rehydra/browser';
-
-// Node.js build (includes everything)
-import { createAnonymizer, SQLitePIIStorageProvider } from 'rehydra/node';
-
-// SQLite storage only (Node.js only)
-import { SQLitePIIStorageProvider } from 'rehydra/storage/sqlite';
-```
-
-**Browser build excludes:**
-- `SQLitePIIStorageProvider` (use `IndexedDBPIIStorageProvider` instead)
-- Node.js `fs`, `path`, `os` modules
-
-**Browser build includes:**
-- All recognizers (email, phone, IBAN, etc.)
-- NER model support (with `onnxruntime-web`)
-- Semantic enrichment
-- `InMemoryPIIStorageProvider`
-- `IndexedDBPIIStorageProvider`
-- All crypto utilities
 
 ## Bun Support
 
