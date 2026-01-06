@@ -11,6 +11,13 @@ export enum DetectionSource {
   HYBRID = "HYBRID",
 }
 
+/**
+ * Anonymization mode
+ * - 'pseudonymize': Reversible anonymization with encrypted PII map (default)
+ * - 'anonymize': Irreversible anonymization without PII map
+ */
+export type AnonymizationMode = "pseudonymize" | "anonymize";
+
 // ============================================================================
 // Semantic Attributes for MT-friendly PII tags
 // ============================================================================
@@ -202,8 +209,8 @@ export interface AnonymizationResult {
   anonymizedText: string;
   /** List of detected entities (without original text for safety) */
   entities: Omit<DetectedEntity, "original">[];
-  /** Encrypted mapping of (type, id) -> original string */
-  piiMap: EncryptedPIIMap;
+  /** Encrypted mapping of (type, id) -> original string (undefined in 'anonymize' mode) */
+  piiMap?: EncryptedPIIMap;
   /** Statistics about the anonymization */
   stats: AnonymizationStats;
 }
