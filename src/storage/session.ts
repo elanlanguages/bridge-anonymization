@@ -95,6 +95,15 @@ export class AnonymizerSessionImpl implements AnonymizerSession {
       existingPiiMap
     );
 
+    // Sessions require a PII map (only available in pseudonymize mode)
+    if (result.piiMap === undefined) {
+      throw new Error(
+        "Session anonymize() failed: no PII map returned.\n\n" +
+          "This can happen if the anonymizer is in 'anonymize' mode.\n" +
+          "Sessions require 'pseudonymize' mode for PII map storage."
+      );
+    }
+
     // Decrypt the new PII map
     const newPiiMap = await decryptPIIMap(result.piiMap, key);
 

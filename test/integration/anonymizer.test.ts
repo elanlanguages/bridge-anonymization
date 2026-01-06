@@ -7,6 +7,7 @@ import {
   PIIType,
   createDefaultPolicy,
   InMemoryKeyProvider,
+  InMemoryPIIStorageProvider,
   decryptPIIMap,
 } from '../../src/index.js';
 
@@ -463,6 +464,159 @@ describe('Anonymizer Class', () => {
 
       // Email should still be detected (default threshold preserved)
       expect(result.anonymizedText).toContain('<PII type="EMAIL"');
+    });
+  });
+
+  describe('anonymization mode', () => {
+    describe('pseudonymize mode (default)', () => {
+      it('should return encrypted PII map by default', async () => {
+        const keyProvider = new InMemoryKeyProvider();
+        const anonymizer = createAnonymizer({ keyProvider });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('Contact john@example.com');
+
+        expect(result.piiMap).toBeDefined();
+        expect(result.piiMap?.ciphertext).toBeTruthy();
+        expect(result.piiMap?.iv).toBeTruthy();
+        expect(result.piiMap?.authTag).toBeTruthy();
+      });
+
+      it('should return encrypted PII map when explicitly set to pseudonymize', async () => {
+        const keyProvider = new InMemoryKeyProvider();
+        const anonymizer = createAnonymizer({
+          keyProvider,
+          mode: 'pseudonymize',
+        });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('Contact john@example.com');
+
+        expect(result.piiMap).toBeDefined();
+        expect(result.piiMap?.ciphertext).toBeTruthy();
+      });
+    });
+
+    describe('anonymize mode', () => {
+      it('should not return PII map in anonymize mode', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('Contact john@example.com');
+
+        expect(result.piiMap).toBeUndefined();
+      });
+
+      it('should still detect and tag PII entities', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('Contact john@example.com for help');
+
+        expect(result.anonymizedText).toContain('<PII type="EMAIL"');
+        expect(result.anonymizedText).not.toContain('john@example.com');
+        expect(result.stats.totalEntities).toBe(1);
+        expect(result.stats.countsByType[PIIType.EMAIL]).toBe(1);
+      });
+
+      it('should assign consistent IDs to repeated PII', async () => {
+        const anonymizer = createAnonymizer({
+          mode: 'anonymize',
+          defaultPolicy: {
+            ...createDefaultPolicy(),
+            reuseIdsForRepeatedPII: true,
+          },
+        });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize(
+          'Contact john@example.com or john@example.com'
+        );
+
+        // Both occurrences should have the same ID
+        const matches = result.anonymizedText.match(/<PII type="EMAIL" id="(\d+)"\/>/g);
+        expect(matches).toHaveLength(2);
+        // IDs should be the same when reuseIdsForRepeatedPII is true
+        const id1 = matches![0].match(/id="(\d+)"/)?.[1];
+        const id2 = matches![1].match(/id="(\d+)"/)?.[1];
+        expect(id1).toBe(id2);
+      });
+
+      it('should include all stats', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('Contact john@example.com');
+
+        expect(result.stats.processingTimeMs).toBeGreaterThan(0);
+        expect(result.stats.modelVersion).toBeTruthy();
+        expect(result.stats.policyVersion).toBeTruthy();
+        expect(result.stats.totalEntities).toBe(1);
+      });
+
+      it('should handle multiple PII types', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize(
+          'Contact john@example.com or call +49123456789. IBAN: DE89370400440532013000'
+        );
+
+        expect(result.piiMap).toBeUndefined();
+        expect(result.stats.totalEntities).toBeGreaterThanOrEqual(3);
+        expect(result.anonymizedText).toContain('<PII type="EMAIL"');
+        expect(result.anonymizedText).toContain('<PII type="IBAN"');
+      });
+
+      it('should handle empty text', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const result = await anonymizer.anonymize('');
+
+        expect(result.piiMap).toBeUndefined();
+        expect(result.anonymizedText).toBe('');
+        expect(result.stats.totalEntities).toBe(0);
+      });
+
+      it('should handle text without PII', async () => {
+        const anonymizer = createAnonymizer({ mode: 'anonymize' });
+        await anonymizer.initialize();
+
+        const text = 'This is a normal sentence without PII.';
+        const result = await anonymizer.anonymize(text);
+
+        expect(result.piiMap).toBeUndefined();
+        expect(result.anonymizedText).toBe(text);
+        expect(result.stats.totalEntities).toBe(0);
+      });
+    });
+
+    describe('session with anonymize mode', () => {
+      it('should throw error when creating session in anonymize mode', async () => {
+        const anonymizer = createAnonymizer({
+          mode: 'anonymize',
+          piiStorageProvider: new InMemoryPIIStorageProvider(),
+          keyProvider: new InMemoryKeyProvider(),
+        });
+        await anonymizer.initialize();
+
+        expect(() => anonymizer.session('test-session')).toThrow(
+          /Cannot create session: anonymizer is in 'anonymize' mode/
+        );
+      });
+
+      it('should work with session in pseudonymize mode', async () => {
+        const anonymizer = createAnonymizer({
+          mode: 'pseudonymize',
+          piiStorageProvider: new InMemoryPIIStorageProvider(),
+          keyProvider: new InMemoryKeyProvider(),
+        });
+        await anonymizer.initialize();
+
+        // Should not throw
+        expect(() => anonymizer.session('test-session')).not.toThrow();
+      });
     });
   });
 });

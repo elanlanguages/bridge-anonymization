@@ -7,6 +7,7 @@ import {
   AnonymizationResult,
   AnonymizationPolicy,
   AnonymizationStats,
+  AnonymizationMode,
   DetectedEntity,
   SemanticConfig,
   SpanMatch,
@@ -187,6 +188,14 @@ export interface AnonymizerConfig {
   registry?: RecognizerRegistry;
 
   /**
+   * Anonymization mode:
+   * - 'pseudonymize': Reversible anonymization with encrypted PII map (default)
+   * - 'anonymize': Irreversible anonymization without PII map
+   * @default 'pseudonymize'
+   */
+  mode?: AnonymizationMode;
+
+  /**
    * NER configuration
    * @default { mode: 'disabled' }
    */
@@ -237,6 +246,7 @@ export class Anonymizer {
   private nerModel: INERModel | null = null;
   private nerConfig: NERConfig;
   private semanticConfig: SemanticConfig;
+  private mode: AnonymizationMode;
   private keyProvider: KeyProvider | null;
   private piiStorageProvider: PIIStorageProvider | null;
   private defaultPolicy: AnonymizationPolicy;
@@ -248,6 +258,7 @@ export class Anonymizer {
 
   constructor(config: AnonymizerConfig = {}, sessionFactory?: SessionFactory) {
     this.registry = config.registry ?? createDefaultRegistry();
+    this.mode = config.mode ?? "pseudonymize";
     this.keyProvider = config.keyProvider ?? null;
     this.piiStorageProvider = config.piiStorageProvider ?? null;
     this.defaultPolicy = config.defaultPolicy ?? createDefaultPolicy();
@@ -507,15 +518,7 @@ export class Anonymizer {
       console.warn("Validation warnings:", safeErrors);
     }
 
-    // Step 7: Encrypt PII map
-    const encryptionKey =
-      this.keyProvider !== null
-        ? await this.keyProvider.getKey()
-        : generateKey();
-
-    const encryptedPiiMap = await encryptPIIMap(piiMap, encryptionKey);
-
-    // Step 8: Build stats
+    // Step 7: Build stats
     const endTime = performance.now();
     const stats: AnonymizationStats = {
       countsByType: countEntitiesByType(entities),
@@ -526,10 +529,28 @@ export class Anonymizer {
       leakScanPassed: validation.leakScanPassed,
     };
 
-    // Step 9: Build result (without original text in entities)
+    // Step 8: Build result (without original text in entities)
     const safeEntities: Omit<DetectedEntity, "original">[] = entities.map(
       ({ original: _original, ...rest }) => rest
     );
+
+    // Step 9: Encrypt PII map (only in pseudonymize mode)
+    if (this.mode === "anonymize") {
+      // Pure anonymization mode - no PII map returned
+      return {
+        anonymizedText,
+        entities: safeEntities,
+        stats,
+      };
+    }
+
+    // Pseudonymize mode - encrypt and return PII map
+    const encryptionKey =
+      this.keyProvider !== null
+        ? await this.keyProvider.getKey()
+        : generateKey();
+
+    const encryptedPiiMap = await encryptPIIMap(piiMap, encryptionKey);
 
     return {
       anonymizedText,
@@ -589,6 +610,20 @@ export class Anonymizer {
    * ```
    */
   session(sessionId: string): AnonymizerSession {
+    if (this.mode === "anonymize") {
+      throw new Error(
+        "Cannot create session: anonymizer is in 'anonymize' mode.\n\n" +
+          "Sessions require PII map storage for rehydration, which is not available " +
+          "in pure anonymization mode.\n\n" +
+          "To use sessions, configure the anonymizer with 'pseudonymize' mode (default):\n" +
+          "  const anonymizer = createAnonymizer({\n" +
+          "    mode: 'pseudonymize',\n" +
+          "    piiStorageProvider: new InMemoryPIIStorageProvider(),\n" +
+          "    keyProvider: new InMemoryKeyProvider(),\n" +
+          "  });"
+      );
+    }
+
     if (this.piiStorageProvider === null) {
       throw new Error(
         "Cannot create session: piiStorageProvider not configured.\n\n" +
